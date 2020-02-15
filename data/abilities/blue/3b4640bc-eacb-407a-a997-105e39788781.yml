@@ -10,7 +10,9 @@
     darwin:
       sh:
         command: |
-          ps -cax | awk '{print $4}'
+          ps aux | grep -v grep | grep #{host.process.unauthorized} | awk '{print $2}'
         parsers:
           plugins.response.app.parsers.process:
             - source: host.process.unauthorized
+              edge: has_pid
+              target: host.pid.unauthorized

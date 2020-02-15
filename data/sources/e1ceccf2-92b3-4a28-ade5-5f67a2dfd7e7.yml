@@ -4,4 +4,4 @@ id: e1ceccf2-92b3-4a28-ade5-5f67a2dfd7e7
 name: response
 facts:
   - trait: host.process.unauthorized
-    value: slack
+    value: :8888
