@@ -1,0 +1,16 @@
+---
+- id: 3b4640bc-eacb-407a-a997-105e39788781
+  name: Unauthorized processes
+  description: Search for processes which should not be on the host
+  tactic: blue
+  technique:
+    attack_id: x
+    name: x
+  platforms:
+    darwin:
+      sh:
+        command: |
+          ps -cax | awk '{print $4}'
+        parsers:
+          plugins.response.app.parsers.process:
+            - source: host.process.unauthorized

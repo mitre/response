@@ -1,0 +1,14 @@
+---
+
+- id: 02fb7fa9-8886-4330-9e65-fa7bb1bc5271
+  name: Kill rogue process
+  description: Force kill any unauthorized processes
+  tactic: blue
+  technique:
+    attack_id: x
+    name: x
+  platforms:
+    darwin:
+      sh:
+        command: |
+          pkill -f *#{host.process.unauthorized}*
