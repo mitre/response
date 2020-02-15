@@ -11,4 +11,4 @@
     darwin:
       sh:
         command: |
-          pkill -f *#{host.process.unauthorized}*
+          pkill -f #{host.process.unauthorized}
