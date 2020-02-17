@@ -8,6 +8,10 @@
     attack_id: x
     name: x
   platforms:
+    linux:
+      sh:
+        command: |
+          kill -9 #{host.pid.unauthorized}
     darwin:
       sh:
         command: |
