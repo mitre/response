@@ -2,7 +2,7 @@
 - id: 3b4640bc-eacb-407a-a997-105e39788781
   name: Find unauthorized processes
   description: Search for processes which should not be on the host
-  tactic: blue
+  tactic: detection
   technique:
     attack_id: x
     name: x
