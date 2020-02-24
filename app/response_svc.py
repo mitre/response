@@ -13,20 +13,13 @@ class ResponseService(BaseService):
         self.log = self.add_service('response_svc', self)
         self.data_svc = services.get('data_svc')
 
-    @template('response.html')
-    async def splash(self, request):
-        abilities = [a for a in await self.data_svc.locate('abilities') if await a.which_plugin() == 'response']
-        adversaries = [a for a in await self.data_svc.locate('adversaries') if await a.which_plugin() == 'response']
-        return dict(abilities=abilities, adversaries=adversaries)
-
-    async def get_status(self, request):
-        """TODO: get operation from request, and call update_status()"""
-        body = await request.json()
-        operation_id = body.get('operation')
-        data_svc = self.get_service('data_svc')
-        operation = data_svc.locate('operations', match={'id':operation_id})
-        return web.Response(body=self.update_status(operation))
-        pass
+    @staticmethod
+    async def get_hosts(operation):
+        hosts = []
+        for agent in operation.agents:
+            if agent.host not in hosts:
+                hosts.append(agent.host)
+        return web.Response(body=hosts)
 
     async def update_status(self, operation):
         hosts = {}
@@ -49,7 +42,7 @@ class ResponseService(BaseService):
                         for rel in [rels for rels in link.relationships if not link.status]:
                             rel.score = 0
                             hosts[link.host].append(rel)
-                            lateral_mov = self.is_lateral_mov(hosts, link.host, rel) if lateral_mov else lateral_mov
+                            lateral_mov = self.is_lateral_mov(hosts, link.host, rel) if not lateral_mov else lateral_mov
         host_status = {}
         for host in hosts:
             status = 0

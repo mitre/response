@@ -28,3 +28,76 @@
         </div>
     </div>
 </div>
+
+<div id="response-section-2" class="section-profile">
+    <div class="row">
+         <div class="topleft duk-icon"><img onclick="removeSection('terminal-section-2')" src="/gui/img/x.png"></div>
+
+         <div class="column" style="flex:100%;padding:15px;text-align: left">
+             <div id="filters">
+                <center>
+                    <div id="viewOperation">
+                        <select id="operation-list" style="margin-bottom: 15px;" onchange="refresh()">
+                          <option id="operationDefault" value="" disabled selected>Operations</option>
+                          {% for op in operations %}
+                                {%  if op.start|length%}
+                                    <option class="operationOption" id="{{ op.id }}-{{ op.name }}" value="{{ op.id }}">{{ op.name }} - {{ op.start }}</option>
+                                {% endif %}
+                          {% endfor %}
+                        </select>
+                    </div>
+                </center>
+             </div>
+             <br>
+             <div id="network">
+                 <table id="host-table" border=1 frame=void rules=rows style="border-spacing:15px;">
+                     <thead>
+                        <tr>
+                            <td><b>Host</b></td>
+                        </tr>
+                     </thead>
+                 </table>
+                 <div id="lateral-mov">NO</div>
+             </div>
+         </div>
+    </div>
+</div>
+<script>
+    let refresher = setInterval(refresh, 10000);
+    $('.section-profile').bind('destroyed', function() {
+        clearInterval(refresher);
+    });
+
+    function refresh(){
+        function refreshHosts(data){
+            data.forEach(function(h){
+                let found = false;
+                $("#host-table tr").each(function () {
+                    if($(this).attr('id') == h) {
+                        found = true;
+                    }
+                });
+                if(!found){
+                    $('#host-table tr:last').after(
+                        '<tr id="'+ h +'">' + h + ': Not Compromised' + '</tr>'
+                }
+            });
+        }
+        function refreshStatus(data){
+            lateral_mov = data.lateral_mov
+            host_status = data.host_status
+            host_status.forEach(function(s){
+                if host_status[s] != 0 {
+                    $("#host-table tr").each(function () {
+                        if($(this).attr('id') == s) {
+                            $(this).replaceWith(s + ': COMPROMISED!!!');
+                        };
+                    });
+                };
+            });
+            if lateral_mov != 0 {
+                $("#lateral-mov").replaceWith('YES!!');
+            };
+        restRequest('POST', info, refreshHosts, '/plugin/responder/update')
+    };
+</script>
