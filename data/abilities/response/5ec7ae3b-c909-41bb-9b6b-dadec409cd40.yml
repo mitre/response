@@ -1,0 +1,21 @@
+---
+- id: 5ec7ae3b-c909-41bb-9b6b-dadec409cd40
+  name: Hunt for and delete known suspicious files
+    description: Use hash of known suspicious file to find instances of said file, and delete instances
+    tactic: detection
+    technique:
+      attack_id: x
+      name: x
+    repeatable: yes
+    platforms:
+      windows:
+        psh:
+          command: |
+            $paths = (Get-ChildItem #{file.search.directory} -Recurse -EA:SilentlyContinue | Get-FileHash -EA:SilentlyContinue |
+            Where-Object hash -eq #{file.malicious.hash} | foreach { $_.Path });
+            $paths | foreach { Remove-Item -Path $_ -Force };
+            @{'paw' = '#{paw}'; 'paths'
+            $paths;
+          parsers:
+            plugins.stockpile.parsers.basic:
+              - source: file.malicious.path
