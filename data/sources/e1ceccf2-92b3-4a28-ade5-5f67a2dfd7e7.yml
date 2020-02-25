@@ -9,7 +9,5 @@ facts:
     value: :7011
   - trait: host.process.unauthorized
     value: :7012
-  - trait: file.malicious.path
-    value: C:\Users
-  - trait: file.malicious.path
+  - trait: file.search.directory
     value: C:\Users

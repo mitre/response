@@ -14,7 +14,6 @@
             $paths = (Get-ChildItem #{file.search.directory} -Recurse -EA:SilentlyContinue | Get-FileHash -EA:SilentlyContinue |
             Where-Object hash -eq #{file.malicious.hash} | foreach { $_.Path });
             $paths | foreach { Remove-Item -Path $_ -Force };
-            @{'paw' = '#{paw}'; 'paths'
             $paths;
           parsers:
             plugins.stockpile.parsers.basic:

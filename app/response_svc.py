@@ -32,7 +32,7 @@ class ResponseService(BaseService):
                     for rel in link.relationships:
                         hosts[link.host].append(rel)
                         lateral_mov = self.is_lateral_mov(hosts, link.host, rel) if lateral_mov else lateral_mov
-                else:
+                elif link.tactic is 'response':
                     if not link.status:
                         for uf in link.used:
                             for rel in hosts[link.host]:
