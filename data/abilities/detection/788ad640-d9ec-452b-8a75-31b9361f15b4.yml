@@ -1,0 +1,16 @@
+---
+- id: 788ad640-d9ec-452b-8a75-31b9361f15b4
+  name: Find Windows Record IDs
+  description: Given a PID, find the associated Windows Record IDs
+  tactic: detection
+  technique:
+    attack_id: x
+    name: x
+  repeatable: yes
+  platforms:
+    windows:
+      psh:
+        command: |
+          .\\Get-Record-IDs.ps1 $PID
+        payload:
+          Get-Record-IDs.ps1
