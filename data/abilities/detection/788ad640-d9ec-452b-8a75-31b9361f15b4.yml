@@ -11,6 +11,6 @@
     windows:
       psh:
         command: |
-          .\\Get-Record-IDs.ps1 $PID
+          .\\Get-Record-IDs.ps1 #{host.process.id}
         payload:
           Get-Record-IDs.ps1

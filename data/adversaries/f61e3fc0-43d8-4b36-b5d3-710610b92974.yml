@@ -1,6 +1,6 @@
 id: f61e3fc0-43d8-4b36-b5d3-710610b92974
-        name: Detector
-        description: A basic detector of Windows system information
-        phases:
-          1:
-            - 3b4640bc-eacb-407a-a997-105e39788781
+name: Detector
+description: A basic detector of Windows system information
+phases:
+  1:
+    - 3b4640bc-eacb-407a-a997-105e39788781
