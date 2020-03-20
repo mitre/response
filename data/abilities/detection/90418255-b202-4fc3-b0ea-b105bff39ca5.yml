@@ -1,0 +1,27 @@
+---
+
+- id: 90418255-b202-4fc3-b0ea-b105bff39ca5
+  name: Collect GUID from PID
+  description: Collect Sysmon ProcessGUIDs from given ProcessID
+  tactic: detection
+  technique:
+    attack_id:
+    name: Query Event Logs
+  platforms:
+    windows:
+      psh:
+        command: |
+          Get-WinEvent -Logname 'Microsoft-Windows-Sysmon/Operational' | where -Property Message -Match "ProcessId: #{host.process.id}" | Format-List;
+        parsers:
+          plugins.response.app.parsers.processguids:
+            - source: host.process.id
+              edge: has_guid
+              target: host.process.guid
+      cmd:
+        command: |
+          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/EventData/Data[@Name='ProcessId']=#{host.process.id}" /f:text
+        parsers:
+          plugins.response.app.parsers.processguids:
+            - source: host.process.id
+              edge: has_guid
+              target: host.process.guid
