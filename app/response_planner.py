@@ -16,4 +16,8 @@ class LogicalPlanner:
             elif link.ability.tactic == 'hunt':
                 if any(uf not in self.handled_detections for uf in link.used):
                     await self.operation.apply(link)
+            elif link.ability.tactic == 'response':
+                if any(uf not in self.handled_detections for uf in link.used):
+                    await self.operation.apply(link)
+                    self.handled_detections.append(uf for uf in link.used if uf not in self.handled_detections)
             await self.operation.apply(link)
