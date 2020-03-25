@@ -8,10 +8,11 @@ class Parser(BaseParser):
 
     def parse(self, blob):
         relationships = []
-        guids = re.findall(r'ProcessGuid: {(.*)}', blob, re.IGNORECASE)
+        guids = re.findall(r'\bProcessGuid: {(.*)}', blob, re.IGNORECASE)
         for guid in guids:
             for mp in self.mappers:
-                source = self.set_value(mp.source, guid, self.used_facts)
+                src_fact_value = [f.value for f in self.source.facts if f.trait == mp.source].pop()
+                source = self.set_value(mp.source, src_fact_value, self.used_facts)
                 target = self.set_value(mp.target, guid, self.used_facts)
                 relationships.append(
                     Relationship(source=(mp.source, source),
