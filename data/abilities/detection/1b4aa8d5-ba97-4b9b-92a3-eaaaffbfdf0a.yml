@@ -1,0 +1,19 @@
+- description: Compare open ports against a known baseline
+  id: 1b4aa8d5-ba97-4b9b-92a3-eaaaffbfdf0a
+  name: Find atypical open ports
+  platforms:
+    windows:
+      psh:
+        command: $basePorts = "135","137","138","139","445","3389";foreach ($port
+          in (Get-NetTCPConnection -RemoteAddress 0.0.0.0 -state Listen)){if ($basePorts
+          -notcontains $port.LocalPort){Write-Output "Unauthorized TCP port $($port.LocalPort) found using PID $($port.OwningProcess)"}};exit
+          0;
+      pwsh:
+        command: $basePorts = "135","137","138","139","445","3389";foreach ($port
+          in (Get-NetTCPConnection -RemoteAddress 0.0.0.0 -state Listen)){if ($basePorts
+          -notcontains $port.LocalPort){Write-Output "Unauthorized TCP port $($port.LocalPort) found using PID $($port.OwningProcess)"}};exit
+          0;
+  tactic: detectionH
+  technique:
+    attack_id: x
+    name: x
