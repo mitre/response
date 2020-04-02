@@ -1,28 +1,13 @@
 - id: 1b4aa8d5-ba97-4b9b-92a3-eaaaffbfdf0a
   name: Find atypical open ports
   description: Compare open ports against a known baseline
-  tactic: command-and-control
+  tactic: detection
   technique:
     attack_id: T1065
     name: Uncommonly Used Port
   platforms:
     windows:
-      psh:
-        command: |
-          $basePorts = "135","137","138","139","445","3389";
-          $pidToPort = @();
-          foreach ($port in (Get-NetTCPConnection -RemoteAddress 0.0.0.0 -state Listen)){
-              if ($basePorts -notcontains $port.LocalPort){
-                  $pidToPort += , @{pid=$port.OwningProcess;port=$port.LocalPort};
-              }
-          };
-          $pidToPort | ConvertTo-Json;
-        parsers:
-          plugins.response.app.parsers.ports:
-            - source: host.pid.unauthorized
-              edge: has_port
-              target: host.port.unauthorized
-      pwsh:
+      psh, pwsh:
         command: |
           $basePorts = "135","137","138","139","445","3389";
           $pidToPort = @();
