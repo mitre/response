@@ -9,11 +9,26 @@
     windows:
       psh, pwsh:
         command: |
-          $basePorts = "135","137","138","139","445","3389";
+          function getFullList($portList){
+              $final = @();
+              foreach ($p in $portList) {
+                  if ($p -like "*-*") {
+                      $minmax = $p.Split("-");
+                      for ($i = ($minmax[0] -as [int]); $i -lt ($minmax[1] -as [int]); $i++) {
+                          $final += ($i -as [string]);
+                      };
+                  } else {
+                      $final += $p;
+                  };
+              };
+              return $final;
+          };
+          $basePorts = @("135","139","389","445","636","1000-5000","9389","49152-65535");
+          $allPorts = getFullList $basePorts;
           $pidToPort = @();
           foreach ($port in (Get-NetTCPConnection -RemoteAddress 0.0.0.0 -state Listen)){
-              if ($basePorts -notcontains $port.LocalPort){
-                  $pidToPort += , @{pid=$port.OwningProcess;port=$port.LocalPort};
+              if ($allPorts -notcontains $port.LocalPort){
+                  pidToPort += , @{pid=$port.OwningProcess;port=$port.LocalPort};
               }
           };
           $pidToPort | ConvertTo-Json;

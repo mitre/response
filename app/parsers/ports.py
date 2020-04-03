@@ -8,8 +8,8 @@ class Parser(BaseParser):
         relationships = []
         for match in self.load_json(blob):
             for mp in self.mappers:
-                source = self.set_value(mp.source, match['port'], self.used_facts)
-                target = self.set_value(mp.target, match['pid'], self.used_facts)
+                source = self.set_value(mp.source, match['pid'], self.used_facts)
+                target = self.set_value(mp.target, match['port'], self.used_facts)
                 relationships.append(
                     Relationship(source=(mp.source, source),
                                  edge=mp.edge,
