@@ -16,3 +16,10 @@
       sh:
         command: |
           kill -9 #{host.pid.unauthorized}
+    windows:
+      psh,pwsh:
+        command: |
+          Stop-Process -Id #{host.pid.unauthorized} -Force
+      cmd:
+        command: |
+          taskkill /pid #{host.pid.unauthorized} /f
