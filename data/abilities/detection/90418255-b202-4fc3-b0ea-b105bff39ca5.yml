@@ -5,7 +5,7 @@
   description: Collect Sysmon ProcessGUIDs from given ProcessID
   tactic: detection
   technique:
-    attack_id:
+    attack_id: x
     name: Query Event Logs
   platforms:
     windows:

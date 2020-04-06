@@ -5,7 +5,7 @@
   description: Collect system information from Sysmon event log given ProcessGUID. Ability timeout may need to be increased depending on Sysmon log size.
   tactic: detection
   technique:
-    attack_id:
+    attack_id: x
     name: Query Event Logs
   platforms:
     windows:
