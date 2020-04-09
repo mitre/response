@@ -1,0 +1,28 @@
+---
+
+- id: 90418255-b202-4fc3-b0ea-b105bff39ca5
+  name: Collect GUID from PID
+  description: Collect Sysmon ProcessGUIDs from given ProcessID
+  tactic: detection
+  technique:
+    attack_id: x
+    name: Query Event Logs
+  platforms:
+    windows:
+      psh:
+        command: |
+          $Yesterday = (Get-Date) - (New-TimeSpan -Day 1);
+          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$Yesterday } | where -Property Message -Match '(?m)^[Parent]*ProcessId: #{host.process.id}\b' | Format-List;
+        parsers:
+          plugins.response.app.parsers.processguids:
+            - source: host.process.id
+              edge: has_guid
+              target: host.process.guid
+      cmd:
+        command: |
+          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= 86400000] and */EventData/Data[@Name='ProcessId']=#{host.process.id} or */EventData/Data[@Name='ParentProcessId']=#{host.process.id}" /f:text
+        parsers:
+          plugins.response.app.parsers.processguids:
+            - source: host.process.id
+              edge: has_guid
+              target: host.process.guid

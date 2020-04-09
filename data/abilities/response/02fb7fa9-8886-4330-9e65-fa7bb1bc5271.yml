@@ -17,9 +17,9 @@
         command: |
           kill -9 #{host.pid.unauthorized}
     windows:
+      psh,pwsh:
+        command: |
+          Stop-Process -Id #{host.pid.unauthorized} -Force
       cmd:
         command: |
-          TASKKILL /PID #{host.pid.unauthorized} /F
-      psh:
-        command: |
-          Stop-Process -ID #{host.pid.unauthorized} -Force
+          taskkill /pid #{host.pid.unauthorized} /f
