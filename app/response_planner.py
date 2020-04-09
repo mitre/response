@@ -11,20 +11,28 @@ class LogicalPlanner:
 
     async def execute(self, phase):
         self.process_completed_links()
-        detections_being_handled = []
-        for link in await self.planning_svc.get_links(operation=self.operation, phase=phase,
-                                                      stopping_conditions=self.stopping_conditions, planner=self):
-            if link.ability.tactic == 'detection':
-                await self.operation.apply(link)
-            elif link.ability.tactic == 'hunt':
-                if any(uf not in self.handled_detections for uf in link.used):
-                    await self.operation.apply(link)
-            elif link.ability.tactic == 'response':
-                if any(uf not in self.handled_detections for uf in link.used) and link.visibility.score() > self.severity:
-                    await self.operation.apply(link)
-                    detections_being_handled.append(uf for uf in link.used if uf not in self.detections_to_handle)
+        links = await self.planning_svc.get_links(operation=self.operation, phase=phase,
+                                                      stopping_conditions=self.stopping_conditions, planner=self)
+        to_apply, detections_being_handled = select_links(links)
+        for link in to_apply:
             await self.operation.apply(link)
         self.handled_detections.extend(detections_being_handled)
+
+    def select_links(self, links):
+        for link in links:
+            to_apply = []
+            detections_being_handled = []
+            if link.ability.tactic == 'detection':
+                to_apply.append(link)
+            elif link.ability.tactic == 'hunt':
+                if any(uf not in self.handled_detections for uf in link.used):
+                    to_apply.append(link)
+            elif link.ability.tactic == 'response':
+                if any(uf not in self.handled_detections for uf in link.used) and link.visibility.score() > self.severity:
+                    to_apply.append(link)
+                    detections_being_handled.append(uf for uf in link.used if uf not in self.detections_to_handle)
+        return to_apply, detections_being_handled
+
 
     def process_completed_links(self):
         for l in [link for link in self.operation.chain if link not in self.processed_links]:
