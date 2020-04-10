@@ -2,16 +2,16 @@ from aiohttp_jinja2 import template
 import asyncio
 
 from app.utility.base_service import BaseService
-from app.utility.observer import Observer
+from app.utility.event import Observer
 
 
-class LinkObserver(Observer):
+class LinkAddedObserver(Observer):
 
     def __init__(self, rest_svc):
-        Observer.__init__(self)
+        Observer.__init__(self, 'link', 'added')
         self.rest_svc = rest_svc
 
-    def link_added(self):
+    def handle(self):
         access = dict(access=(self.rest_svc.Access.BLUE,))
         data = {
             'name': 'Auto-Collect Blue Data',
@@ -30,8 +30,7 @@ class ResponseService(BaseService):
         self.data_svc = services.get('data_svc')
 
         rest_svc = services.get('rest_svc')
-        link_observer = LinkObserver(rest_svc)
-        link_observer.observe('link added', link_observer.link_added)
+        LinkAddedObserver.register(rest_svc)
 
     @template('response.html')
     async def splash(self, request):
