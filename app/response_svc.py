@@ -73,4 +73,7 @@ class ResponseService(BaseService):
         await self.get_service('data_svc').store(source)
         op = Operation(name=BLUE_OP_NAME, agents=self.agents, adversary=BLUE_ADVERSARY,
                        source=source, state='finished', access=access)
+        await op.close()
+        for link in links:
+            op.add_link(link)
         await self.get_service('data_svc').store(op)
