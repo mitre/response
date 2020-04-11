@@ -68,7 +68,7 @@ class ResponseService(BaseService):
     async def create_operation(self, links, facts):
         access = dict(access=(self.rest_svc.Access.BLUE,))
         source_id = str(uuid.uuid4())
-        source_name = 'blue-pid-{}'.format(source_id),
+        source_name = 'blue-pid-{}'.format(source_id)
         source = Source(identifier=source_id, name=source_name, facts=facts)
         await self.get_service('data_svc').store(source)
         op = Operation(name=BLUE_OP_NAME, agents=self.agents, adversary=BLUE_ADVERSARY,
