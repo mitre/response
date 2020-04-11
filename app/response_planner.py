@@ -11,17 +11,17 @@ class LogicalPlanner:
 
     async def execute(self, phase):
         self.process_completed_links()
-        links = await self.planning_svc.get_links(operation=self.operation, phase=phase,
+        links = await self.planning_svc.get_links(operation=self.operation, phase=1,
                                                       stopping_conditions=self.stopping_conditions, planner=self)
-        to_apply, detections_being_handled = select_links(links)
+        to_apply, detections_being_handled = self.select_links(links)
         for link in to_apply:
             await self.operation.apply(link)
         self.handled_detections.extend(detections_being_handled)
 
     def select_links(self, links):
+        to_apply = []
+        detections_being_handled = []
         for link in links:
-            to_apply = []
-            detections_being_handled = []
             if link.ability.tactic == 'detection':
                 to_apply.append(link)
             elif link.ability.tactic == 'hunt':

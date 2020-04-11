@@ -4,5 +4,5 @@ description: A basic incident responder profile, detects and hunts for malicious
 phases:
   1:
     - 77272c88-ccf5-4225-a3d9-f9e171d1ca5b
-  2:
+    - f9b3eff0-e11c-48de-9338-1578b351b14b
     - 5ec7ae3b-c909-41bb-9b6b-dadec409cd40
