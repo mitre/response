@@ -110,3 +110,4 @@ class TestPlanner(TestBase):
         self.assertEqual(3, link_ability_ids.count('10'))
         self.assertEqual(2, link_ability_ids.count('20'))
         self.assertEqual(1, link_ability_ids.count('30'))
+        
