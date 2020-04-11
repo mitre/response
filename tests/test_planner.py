@@ -13,6 +13,7 @@ from app.objects.secondclass.c_requirement import Requirement
 from app.objects.c_source import Source
 from tests.base.test_base import TestBase
 
+
 class TestPlanner(TestBase):
 
     def setUp(self):
@@ -20,9 +21,9 @@ class TestPlanner(TestBase):
         BaseWorld.apply_config(name='default',
                                config={'app.contact.http': '0.0.0.0', 'plugins': ['sandcat', 'stockpile']})
         self.test_ab_detection = Ability(ability_id='10', tactic='detection', technique_id='1', technique='1',
-                                    name='detection1',
-                                    test='MQ==', description='detection1', cleanup='', executor='sh',
-                                    platform='linux', parsers=[], requirements=[], privilege=None, variations=[])
+                                         name='detection1',
+                                         test='MQ==', description='detection1', cleanup='', executor='sh',
+                                         platform='linux', parsers=[], requirements=[], privilege=None, variations=[])
         self.test_ab_hunt = Ability(ability_id='20', tactic='hunt', technique_id='2', technique='2', name='hunt1',
                                     test='I3todW50LnRoaXMuZmFjdH0=', description='hunt1', cleanup='', executor='sh',
                                     platform='linux', parsers=[], requirements=[], privilege=None, variations=[])
@@ -32,12 +33,12 @@ class TestPlanner(TestBase):
         self.test_ab_response = Ability(ability_id='30', tactic='response', technique_id='3', technique='3',
                                         name='response1', test='I3tyZXNwb25kLnRoaXMuZmFjdH0=', description='response1',
                                         cleanup='', executor='sh', platform='linux', parsers=[],
-                                        requirements=[self.requirement_paw_provenance],privilege=None, variations=[])
+                                        requirements=[self.requirement_paw_provenance], privilege=None, variations=[])
         self.ab_list = [self.test_ab_detection, self.test_ab_hunt, self.test_ab_response]
         self.agent1 = Agent(0, 0, 0, paw='agent1', platform='linux', executors=['sh'])
         self.agent2 = Agent(0, 0, 0, paw='agent2', platform='linux', executors=['sh'])
         self.adversary = Adversary(adversary_id='1', name='test', description='test adversary',
-                                        phases={1: self.ab_list})
+                                   phases={1: self.ab_list})
         self.source = Source(identifier='test', name='test', facts=[])
         self.planner_object = Planner(planner_id='1', name='response_planner', params=[],
                                       module='plugins.response.app.response_planner.py')
@@ -110,4 +111,3 @@ class TestPlanner(TestBase):
         self.assertEqual(3, link_ability_ids.count('10'))
         self.assertEqual(2, link_ability_ids.count('20'))
         self.assertEqual(1, link_ability_ids.count('30'))
-        

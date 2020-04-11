@@ -6,13 +6,13 @@ class LogicalPlanner:
         self.stopping_conditions = stopping_conditions
         self.stopping_condition_met = False
         self.processed_links = []
-        self.handled_detections = []    #stores completed links that are processed
+        self.handled_detections = []    # stores completed links that are processed
         self.severity = 0
 
     async def execute(self, phase=1):
         self.process_completed_links()
         links = await self.planning_svc.get_links(operation=self.operation, phase=1,
-                                                      stopping_conditions=self.stopping_conditions, planner=self)
+                                                  stopping_conditions=self.stopping_conditions, planner=self)
         to_apply, detections_being_handled = self.select_links(links)
         for link in to_apply:
             await self.operation.apply(link)
