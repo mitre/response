@@ -24,7 +24,8 @@ class LinkCompletedObserver(Observer):
             return
 
         links, facts = await self.response_svc.respond_to_pid(pid, agent)
-        await self.response_svc.create_operation(links, facts)
+        source = await self.response_svc.create_fact_source(facts)
+        await self.response_svc.create_operation(links, source)
 
 
 class ResponseService(BaseService):
@@ -34,6 +35,7 @@ class ResponseService(BaseService):
         self.data_svc = services.get('data_svc')
         self.rest_svc = services.get('rest_svc')
         self.agents = []
+        self.adversary = None
         self.abilities = []
 
         LinkCompletedObserver.register(self)
@@ -51,7 +53,7 @@ class ResponseService(BaseService):
 
         for blue_agent in self.agents:
             for step in self.abilities:
-                links = await self.rest_svc.task_agent_with_ability(blue_agent, step, facts)
+                links = await self.rest_svc.task_agent_with_ability(blue_agent.paw, step, facts)
                 for link in links:
                     facts.extend(link.facts)
                 total_links.extend(links)
@@ -59,21 +61,23 @@ class ResponseService(BaseService):
         return total_links, facts
 
     async def refresh_blue_agents_abilities(self):
-        blue_agents = await self.data_svc.locate('agents', match=dict(group='blue'))
-        self.agents = [agent.paw for agent in blue_agents]
+        self.agents = await self.data_svc.locate('agents', match=dict(group='blue'))
 
-        blue_adversary = await self.data_svc.locate('adversaries', match=dict(adversary_id=BLUE_ADVERSARY))
-        self.abilities = [a.ability_id for a in blue_adversary[0].atomic_ordering]
+        self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=BLUE_ADVERSARY)))[0]
+        self.abilities = [a.ability_id for a in self.adversary.atomic_ordering]
 
-    async def create_operation(self, links, facts):
-        access = dict(access=(self.rest_svc.Access.BLUE,))
+    async def create_fact_source(self, facts):
         source_id = str(uuid.uuid4())
         source_name = 'blue-pid-{}'.format(source_id)
-        source = Source(identifier=source_id, name=source_name, facts=facts)
+        return Source(identifier=source_id, name=source_name, facts=facts)
+
+    async def create_operation(self, links, source):
+        access = dict(access=(self.rest_svc.Access.BLUE,))
         await self.get_service('data_svc').store(source)
-        op = Operation(name=BLUE_OP_NAME, agents=self.agents, adversary=BLUE_ADVERSARY,
+        op = Operation(name=BLUE_OP_NAME, agents=self.agents, adversary=self.adversary,
                        source=source, state='finished', access=access)
-        await op.close()
+        op.set_start_details()
         for link in links:
             op.add_link(link)
+        await op.close()
         await self.get_service('data_svc').store(op)
