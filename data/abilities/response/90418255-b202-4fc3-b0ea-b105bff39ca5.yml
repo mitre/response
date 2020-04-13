@@ -26,3 +26,7 @@
             - source: host.process.id
               edge: has_guid
               target: host.process.guid
+    darwin:
+      sh:
+        command: |
+          echo "ability 90418255-b202-4fc3-b0ea-b105bff39ca5 for pid #{host.process.id} working"
