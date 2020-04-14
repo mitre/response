@@ -3,7 +3,7 @@
 - id: 90418255-b202-4fc3-b0ea-b105bff39ca5
   name: Collect GUID from PID
   description: Collect Sysmon ProcessGUIDs from given ProcessID
-  tactic: detection
+  tactic: response
   technique:
     attack_id: x
     name: Query Event Logs
