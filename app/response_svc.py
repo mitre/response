@@ -100,5 +100,6 @@ class ResponseService(BaseService):
 
     async def update_operation(self, links):
         for link in links:
+            link.operation = self.op.id
             self.op.add_link(link)
         await self.get_service('data_svc').store(self.op)
