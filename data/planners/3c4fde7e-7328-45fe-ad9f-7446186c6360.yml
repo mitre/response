@@ -1,0 +1,10 @@
+---
+
+id: 3c4fde7e-7328-45fe-ad9f-7446186c6360
+name: response
+description: |
+  The response planner is designed to run in a phaseless response operation, executing abilities within the detection,
+  hunt, and response tactics. Its purpose is to automatically retrieve detections on endpoints, hunt for similar
+  occurrences on other endpoints within the operation, and to respond to the detections in order to minimize the impact
+  of adversary activity.
+module: plugins.response.app.response_planner
