@@ -1,4 +1,4 @@
-class LogicalPlanner:
+class ResponsePlanner:
 
     def __init__(self, operation, planning_svc, stopping_conditions=()):
         self.operation = operation
