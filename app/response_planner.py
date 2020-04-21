@@ -1,4 +1,4 @@
-class ResponsePlanner:
+class LogicalPlanner:
 
     def __init__(self, operation, planning_svc, stopping_conditions=()):
         self.operation = operation
@@ -9,7 +9,7 @@ class ResponsePlanner:
         self.handled_detections = []    # stores completed links that are processed
         self.severity = 0
 
-    async def execute(self, phase=1):
+    async def execute(self, **kwargs):
         self.process_completed_links()
         links = await self.planning_svc.get_links(operation=self.operation, phase=1,
                                                   stopping_conditions=self.stopping_conditions, planner=self)
