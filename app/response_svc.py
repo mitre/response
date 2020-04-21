@@ -1,11 +1,12 @@
 from aiohttp_jinja2 import template
+import asyncio
+import json
 import uuid
 
 from app.objects.secondclass.c_fact import Fact
 from app.objects.c_operation import Operation
 from app.objects.c_source import Source
 from app.utility.base_service import BaseService
-from app.utility.event import Observer
 
 
 BLUE_GROUP = 'blue'
@@ -13,16 +14,14 @@ BLUE_ADVERSARY = 'f61e3fc0-43d8-4b36-b5d3-710610b92974'
 BLUE_OP_NAME = 'Auto-Collect'
 
 
-class LinkCompletedObserver(Observer):
+async def handle_link_completed(socket, path, services):
+    data = json.loads(await socket.recv())
+    if data['agent']['group'] == BLUE_GROUP:
+        return
 
-    def __init__(self, response_svc):
-        Observer.__init__(self, 'link', 'completed')
-        self.response_svc = response_svc
-
-    async def handle(self, agent, pid):
-        if agent.group == BLUE_GROUP:
-            return
-        await self.response_svc.respond_to_pid(pid, agent)
+    pid = data['pid']
+    agent = await services.get('data_svc').locate('agents', match=dict(paw=data['agent']['paw']))
+    await services.get('response_svc').respond_to_pid(pid, agent[0])
 
 
 class ResponseService(BaseService):
@@ -34,9 +33,7 @@ class ResponseService(BaseService):
         self.agents = []
         self.adversary = None
         self.abilities = []
-
         self.op = None
-        LinkCompletedObserver.register(self)
 
     @template('response.html')
     async def splash(self, request):
@@ -44,34 +41,34 @@ class ResponseService(BaseService):
         adversaries = [a for a in await self.data_svc.locate('adversaries') if await a.which_plugin() == 'response']
         return dict(abilities=abilities, adversaries=adversaries)
 
+    @staticmethod
+    async def register_handler(event_svc):
+        await event_svc.observe_event('link/completed', handle_link_completed)
+
     async def respond_to_pid(self, pid, agent):
-        self.log.info(f"responding to pid: {pid} and agent: {agent}")
         await self.refresh_blue_agents_abilities()
         available_agents = [a for a in self.agents if a.host == agent.host]
         if not available_agents:
-            self.log.info('No available blue agents to respond to red action')
+            self.log.debug('No available blue agents to respond to red action')
             return
         facts = [Fact(trait='host.process.id', value=pid)]
         total_links = []
 
         for blue_agent in available_agents:
+            agent_facts = facts.copy()
             for ability_id in self.abilities:
-                self.log.info(f"tasking blue agent with ability {blue_agent.paw} ability_id: {ability_id}, pid {pid}")
-                links = await self.rest_svc.task_agent_with_ability(blue_agent.paw, ability_id, facts)
+                links = await self.rest_svc.task_agent_with_ability(blue_agent.paw, ability_id, agent_facts)
+                await self.wait_for_link_completion(links, agent)
                 for link in links:
-                    facts.extend(link.facts)
+                    unique_facts = link.facts[1:]
+                    agent_facts.extend(unique_facts)
                 total_links.extend(links)
+            facts.extend(agent_facts)
 
         for l in total_links:
             l.pin = int(pid)
 
-        if not self.op:
-            source = await self.create_fact_source(facts)
-            await self.create_operation(links=total_links, source=source)
-            self.log.info('blue op created')
-        else:
-            await self.update_operation(total_links)
-            self.log.info('blue op updated')
+        await self.save_to_operation(facts, total_links)
 
     async def refresh_blue_agents_abilities(self):
         self.agents = [agent for agent in await self.data_svc.locate('agents', match=dict(group='blue'))
@@ -84,10 +81,26 @@ class ResponseService(BaseService):
             if a.ability_id not in self.abilities:
                 self.abilities.append(a.ability_id)
 
+    @staticmethod
+    async def wait_for_link_completion(links, agent):
+        for link in links:
+            while not link.finish or link.can_ignore():
+                await asyncio.sleep(3)
+                if not agent.trusted:
+                    break
+
     async def create_fact_source(self, facts):
         source_id = str(uuid.uuid4())
         source_name = 'blue-pid-{}'.format(source_id)
         return Source(identifier=source_id, name=source_name, facts=facts)
+
+    async def save_to_operation(self, facts, links):
+        if not self.op or await self.op.is_finished():
+            source = await self.create_fact_source(facts)
+            await self.create_operation(links=links, source=source)
+        else:
+            await self.update_operation(links)
+        await self.get_service('data_svc').store(self.op)
 
     async def create_operation(self, links, source):
         planner = (await self.get_service('data_svc').locate('planners', match=dict(name='sequential')))[0]
@@ -96,10 +109,9 @@ class ResponseService(BaseService):
                             source=source, access=self.Access.BLUE, planner=planner, state='running',
                             auto_close=False, jitter='1/4')
         self.op.set_start_details()
-        self.log.info(f"Response Operation {self.op.id}:{self.op.name} Started")
+        await self.update_operation(links)
 
     async def update_operation(self, links):
         for link in links:
             link.operation = self.op.id
             self.op.add_link(link)
-        await self.get_service('data_svc').store(self.op)
