@@ -9,19 +9,19 @@ from app.objects.c_source import Source
 from app.utility.base_service import BaseService
 
 
-BLUE_GROUP = 'blue'
 BLUE_ADVERSARY = 'f61e3fc0-43d8-4b36-b5d3-710610b92974'
 BLUE_OP_NAME = 'Auto-Collect'
 
 
 async def handle_link_completed(socket, path, services):
     data = json.loads(await socket.recv())
-    if data['agent']['group'] == BLUE_GROUP:
-        return
+    paw = data['agent']['paw']
+    data_svc = services.get('data_svc')
 
-    pid = data['pid']
-    agent = await services.get('data_svc').locate('agents', match=dict(paw=data['agent']['paw']))
-    await services.get('response_svc').respond_to_pid(pid, agent[0])
+    agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
+    if agent:
+        pid = data['pid']
+        return await services.get('response_svc').respond_to_pid(pid, agent[0])
 
 
 class ResponseService(BaseService):
@@ -71,9 +71,7 @@ class ResponseService(BaseService):
         await self.save_to_operation(facts, total_links)
 
     async def refresh_blue_agents_abilities(self):
-        self.agents = [agent for agent in await self.data_svc.locate('agents', match=dict(group='blue'))
-                       if agent.group == 'blue']
-
+        self.agents = await self.data_svc.locate('agents', match=dict(access=self.Access.BLUE))
         self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=BLUE_ADVERSARY)))[0]
 
         self.abilities = []
