@@ -1,11 +1,9 @@
 id: 7e422753-ad7a-4401-bc8b-b12a28e69c25
 name: Incident responder
 description: A basic incident responder profile
-phases:
-  1:
+atomic_ordering:
     - 3b4640bc-eacb-407a-a997-105e39788781
     - 1b4aa8d5-ba97-4b9b-92a3-eaaaffbfdf0a
-  2:
     - 02fb7fa9-8886-4330-9e65-fa7bb1bc5271
     - debd322d-2100-45f7-8832-29ef7c56786d
     - cb85039a-6196-4262-883b-0beeb804b83d
