@@ -9,3 +9,5 @@ facts:
     value: 7011
   - trait: remote.port.unauthorized
     value: 7012
+  - trait: file.search.directory
+    value: C:\Users

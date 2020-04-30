@@ -14,5 +14,5 @@
           Where-Object hash -eq #{file.malicious.hash} | foreach { $_.Path });
           $paths;
         parsers:
-          plugins.stockpile.parsers.basic:
+          plugins.stockpile.app.parsers.basic:
             - source: host.malicious.file

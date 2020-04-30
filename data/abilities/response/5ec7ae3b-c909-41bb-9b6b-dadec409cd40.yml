@@ -1,6 +1,6 @@
 ---
 - id: 5ec7ae3b-c909-41bb-9b6b-dadec409cd40
-  name: Hunt for and delete known suspicious files
+  name: Delete known suspicious files
   description: Use hash of known suspicious file to find instances of said file, and delete instances
   tactic: response
   technique:
