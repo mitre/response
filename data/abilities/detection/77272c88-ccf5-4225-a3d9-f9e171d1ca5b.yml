@@ -6,7 +6,6 @@
   technique:
     attack_id: x
     name: x
-  repeatable: yes
   platforms:
     windows:
       psh:
@@ -15,5 +14,5 @@
             Get-Content C:\Users\Public\malicious_files.txt -Raw
           }
         parsers:
-          plugins.stockpile.app.parsers.basic:
-            - source: file.malicous.hash
+          plugins.response.app.parsers.basic_strip:
+            - source: file.malicious.hash
