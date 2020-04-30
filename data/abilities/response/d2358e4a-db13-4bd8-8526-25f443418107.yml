@@ -1,25 +1,25 @@
 ---
 - id: d2358e4a-db13-4bd8-8526-25f443418107
   name: Restart host
-    description: If a host is behaving incorrectly, perform a restart to reset non-persistent activities
-    tactic: response
-    technique:
-      attack_id: x
-      name: x
-    repeatable: yes
-    platforms:
-      linux:
-        sh:
-          command: |
-            shutdown -r now
-      darwin:
-        sh:
-          command: |
-            shutdown -r now
-      windows:
-        cmd:
-          command: |
-            shutdown /r /f /t 0
-        psh:
-          command: |
-            Restart-Computer -Force
+  description: If a host is behaving incorrectly, perform a restart to reset non-persistent activities
+  tactic: response
+  technique:
+    attack_id: x
+    name: x
+  repeatable: yes
+  platforms:
+    linux:
+      sh:
+        command: |
+          shutdown -r now
+    darwin:
+      sh:
+        command: |
+          shutdown -r now
+    windows:
+      cmd:
+        command: |
+          shutdown /r /f /t 0
+      psh:
+        command: |
+          Restart-Computer -Force

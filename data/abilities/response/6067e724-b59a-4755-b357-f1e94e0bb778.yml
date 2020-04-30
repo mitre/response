@@ -1,25 +1,25 @@
 ---
 - id: 6067e724-b59a-4755-b357-f1e94e0bb778
-    name: Shutdown host
-      description: If a host is compromised, shut it down
-      tactic: response
-      technique:
-        attack_id: x
-        name: x
-      repeatable: yes
-      platforms:
-        linux:
-          sh:
-            command: |
-              shutdown now
-        darwin:
-          sh:
-            command: |
-              shutdown now
-        windows:
-          cmd:
-            command: |
-              SHUTDOWN /f /t 0
-          psh:
-            command: |
-              Stop-Computer -Force
+  name: Shutdown host
+  description: If a host is compromised, shut it down
+  tactic: response
+  technique:
+    attack_id: x
+    name: x
+  repeatable: yes
+  platforms:
+    linux:
+      sh:
+        command: |
+          shutdown now
+    darwin:
+      sh:
+        command: |
+          shutdown now
+    windows:
+      cmd:
+        command: |
+          SHUTDOWN /f /t 0
+      psh:
+        command: |
+          Stop-Computer -Force

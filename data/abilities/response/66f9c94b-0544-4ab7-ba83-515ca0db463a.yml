@@ -1,28 +1,28 @@
 ---
 - id: 66f9c94b-0544-4ab7-ba83-515ca0db463a
   name: Maul dangerous process
-    description: Force kill any unauthorized processes and their parent process
-    tactic: response
-    technique:
-      attack_id: x
-      name: x
-    platforms:
-      linux:
-        sh:
-          command: |
-            ppid=$(ps aux -o ppid= #{host.pid.malicious});
-            kill -9 #{host.pid.malicious};
-            kill -9 $ppid;
-      darwin:
-        sh:
-          command: |
-            ppid=$(ps aux -o ppid= #{host.pid.malicious});
-            kill -9 #{host.pid.malicious};
-            kill -9 $ppid;
-      windows:
-        psh:
-          command: |
-            $p = Get-Process -Id #{host.pid.malicious};
-            $win32p = gwmi win32_process | ? processid -eq  $p.Id;
-            Stop-Process -ID $p.Id -Force
-            Stop-Process -ID $win32p.ParentProcessId
+  description: Force kill any unauthorized processes and their parent process
+  tactic: response
+  technique:
+    attack_id: x
+    name: x
+  platforms:
+    linux:
+      sh:
+        command: |
+          ppid=$(ps aux -o ppid= #{host.pid.malicious});
+          kill -9 #{host.pid.malicious};
+          kill -9 $ppid;
+    darwin:
+      sh:
+        command: |
+          ppid=$(ps aux -o ppid= #{host.pid.malicious});
+          kill -9 #{host.pid.malicious};
+          kill -9 $ppid;
+    windows:
+      psh:
+        command: |
+          $p = Get-Process -Id #{host.pid.malicious};
+          $win32p = gwmi win32_process | ? processid -eq  $p.Id;
+          Stop-Process -ID $p.Id -Force
+          Stop-Process -ID $win32p.ParentProcessId

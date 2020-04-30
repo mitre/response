@@ -1,21 +1,21 @@
 ---
 - id: 2ca64acd-dc12-4cc8-b78a-6a182508a50b
   name: Innoculate C2
-    description: Reroute suspicious IP addresses to localhost by editing hosts file
-    tactic: response
-    technique:
-      attack_id: x
-      name: x
-    platforms:
-      linux:
-        sh:
-          command: |
-            echo -e '#{remote.suspicious.ip}\tlocalhost' >> /etc/hosts
-      darwin:
-        sh:
-          command: |
-            echo -e '#{remote.suspicious.ip}\tlocalhost' >> /etc/hosts
-      windows:
-        psh:
-          command: |
-            Add-Content c:\windows\system32\drivers\etc\hosts "#{remote.suspicious.ip}`tlocalhost"
+  description: Reroute suspicious IP addresses to localhost by editing hosts file
+  tactic: response
+  technique:
+    attack_id: x
+    name: x
+  platforms:
+    linux:
+      sh:
+        command: |
+          echo -e '#{remote.suspicious.ip}\tlocalhost' >> /etc/hosts
+    darwin:
+      sh:
+        command: |
+          echo -e '#{remote.suspicious.ip}\tlocalhost' >> /etc/hosts
+    windows:
+      psh:
+        command: |
+          Add-Content c:\windows\system32\drivers\etc\hosts "#{remote.suspicious.ip}`tlocalhost"
