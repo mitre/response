@@ -6,7 +6,6 @@
     technique:
       attack_id: x
       name: x
-    repeatable: yes
     platforms:
       windows:
         psh:
