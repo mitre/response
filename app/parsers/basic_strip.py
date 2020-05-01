@@ -16,4 +16,3 @@ class Parser(BaseParser):
                                  target=(mp.target, target))
                 )
         return relationships
-    
