@@ -1,0 +1,11 @@
+- description: Discover IPs that connected to the honeypot port
+  id: f0adaf0e-c479-4110-8518-a5a450a3ee2f
+  name: Find Suspicious IPs
+  platforms:
+    darwin:
+      sh:
+        command: cat honeyport.txt | grep -i 'Connection from' | awk '{print $3}'
+  tactic: detection
+  technique:
+    attack_id: x
+    name: x

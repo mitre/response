@@ -1,0 +1,25 @@
+---
+
+- id: dbae4298-b8c7-42e8-92ca-c9cf73530e1b
+  name: Setup Honeypot Listener
+  description: Sets up a netcat listener on an uncommon port to determine suspicious IPs when they run a full port scan.
+  tactic: setup
+  repeatable: True
+  technique:
+    attack_id: x
+    name: x
+  platforms:
+    linux:
+      sh:
+        command: |
+          if ! $(ps aux | grep -v "grep" | grep -q "nc .* #{host.honeypot.port}"); then touch honeyport.txt;
+          /bin/bash -c 'nc -lvp #{host.honeypot.port} &>> honeyport.txt &'; fi
+        cleanup: |
+          rm -y honeyport.txt;
+    darwin:
+      sh:
+        command: |
+          if ! $(ps aux | grep -v "grep" | grep -q "nc .* #{host.honeypot.port}"); then touch honeyport.txt;
+          nc -lv #{host.honeypot.port} &>> honeyport.txt & fi
+        cleanup: |
+          rm -y honeyport.txt;
