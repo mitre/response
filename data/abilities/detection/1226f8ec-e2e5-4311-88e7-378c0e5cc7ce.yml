@@ -7,18 +7,19 @@
   technique:
     attack_id: x
     name: x
+  repeatable: True
   platforms:
     linux:
       sh:
         command: |
-          find /var/mail -type f -exec grep "From: .*@.*\..*" {} \; | cut -d'@' -f2
+          find /var/mail -type f -exec grep "From .*@.*\..*" {} \; | cut -d'@' -f2
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: remote.suspicious.url
     darwin:
       sh:
         command: |
-          find /var/mail -type f -exec grep "From: .*@.*\..*" {} \; | cut -d'@' -f2
+          find /var/mail -type f -exec grep "From .*@.*\..*" {} \; | cut -d'@' -f2
           parsers:
           plugins.stockpile.app.parsers.basic:
             - source: remote.suspicious.url
