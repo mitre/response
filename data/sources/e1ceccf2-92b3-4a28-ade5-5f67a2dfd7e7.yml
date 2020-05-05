@@ -9,3 +9,5 @@ facts:
     value: 7011
   - trait: remote.port.unauthorized
     value: 7012
+  - trait: host.honeypot.port
+    value: 6789

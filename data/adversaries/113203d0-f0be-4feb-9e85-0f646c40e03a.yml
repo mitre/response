@@ -1,0 +1,7 @@
+id: 113203d0-f0be-4feb-9e85-0f646c40e03a
+name: Honeypot for Suspicious IPs
+description: A limited defender for finding and routing suspicious ips to localhost
+atomic_ordering:
+  - dbae4298-b8c7-42e8-92ca-c9cf73530e1b
+  - f0adaf0e-c479-4110-8518-a5a450a3ee2f
+  - 2ca64acd-dc12-4cc8-b78a-6a182508a50b
