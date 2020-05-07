@@ -2,7 +2,7 @@
 - id: f9b3eff0-e11c-48de-9338-1578b351b14b
   name: Hunt for known suspicious files
   description: Use hash of known suspicious file to find instances of said file on hosts
-  tactic: response
+  tactic: hunt
   technique:
     attack_id: x
     name: x
