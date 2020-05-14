@@ -1,5 +1,6 @@
 import re
 
+from app.objects.secondclass.c_fact import Fact
 from app.objects.secondclass.c_relationship import Relationship
 from app.utility.base_parser import BaseParser
 
@@ -15,8 +16,8 @@ class Parser(BaseParser):
                 source = self.set_value(mp.source, src_fact_value, self.used_facts)
                 target = self.set_value(mp.target, guid, self.used_facts)
                 relationships.append(
-                    Relationship(source=(mp.source, source),
+                    Relationship(source=Fact(mp.source, source),
                                  edge=mp.edge,
-                                 target=(mp.target, target))
+                                 target=Fact(mp.target, target))
                 )
         return relationships
