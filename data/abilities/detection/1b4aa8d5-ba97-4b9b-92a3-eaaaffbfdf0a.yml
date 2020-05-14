@@ -5,6 +5,7 @@
   technique:
     attack_id: T1065
     name: Uncommonly Used Port
+  repeatable: True
   platforms:
     windows:
       psh, pwsh:

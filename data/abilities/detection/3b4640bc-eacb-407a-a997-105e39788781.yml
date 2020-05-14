@@ -6,7 +6,7 @@
   technique:
     attack_id: x
     name: x
-  repeatable: yes
+  repeatable: True
   platforms:
     darwin:
       sh:
