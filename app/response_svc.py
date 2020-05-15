@@ -120,7 +120,7 @@ class ResponseService(BaseService):
         await self.get_service('data_svc').store(self.op)
 
     async def create_operation(self, links, source):
-        planner = (await self.get_service('data_svc').locate('planners', match=dict(name='sequential')))[0]
+        planner = (await self.get_service('data_svc').locate('planners', match=dict(name='batch')))[0]
         await self.get_service('data_svc').store(source)
         self.op = Operation(name=BLUE_OP_NAME, agents=self.agents, adversary=self.adversary,
                             source=source, access=self.Access.BLUE, planner=planner, state='running',
