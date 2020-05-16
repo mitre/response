@@ -1,5 +1,6 @@
 import re
 
+from app.objects.secondclass.c_fact import Fact
 from app.objects.secondclass.c_relationship import Relationship
 from app.utility.base_parser import BaseParser
 
@@ -14,9 +15,9 @@ class Parser(BaseParser):
                 match = self.parse_options[mp.target.split('.').pop()](event)
                 if match:
                     guid = [f.value for f in self.used_facts if f.trait == mp.source].pop()
-                    relationships.append(Relationship(source=(mp.source, guid),
+                    relationships.append(Relationship(source=Fact(mp.source, guid),
                                                       edge=mp.edge,
-                                                      target=(mp.target, match.group(1))))
+                                                      target=Fact(mp.target, match.group(1))))
         return relationships
 
     @property
