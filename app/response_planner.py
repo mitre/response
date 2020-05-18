@@ -15,15 +15,16 @@ class LogicalPlanner:
         await self.planning_svc.execute_planner(self)
 
     async def detection(self):
-        links = self.planning_svc.get_links(planner=self, operation=self.operation, bucket=['hunt'])
+        await self.planning_svc.exhaust_bucket(self, ['detection'], self.operation)
         self.next_bucket = await self.planning_svc.default_next_bucket('detection', self.state_machine)
 
     async def hunt(self):
         links = self.planning_svc.get_links(planner=self, operation=self.operation, bucket=['hunt'])
         to_apply = []
         for link in links:
-            if any(parent not in self.links_hunted for parent in self._get_parent_links(link)):
+            if any(parent not in self.links_hunted for parent in self._get_parent_links(link)):  # Put this in a function that returns unaddressed parent links
                 to_apply.append(link)
+        await self._run_links(to_apply)   # Finish this method
         self.next_bucket = await self.planning_svc.default_next_bucket('hunt', self.state_machine)
         pass
 
@@ -53,28 +54,32 @@ class LogicalPlanner:
                 return True
         return False
 
-
-
-
-
-
-    async def execute(self, **kwargs):
-        links = await self.planning_svc.get_links(operation=self.operation,
-                                                  stopping_conditions=self.stopping_conditions, planner=self)
-        to_apply, detections_being_handled = self.select_links(links)
-        for link in to_apply:
-            await self.operation.apply(link)
-        self.handled_detection_and_response_links.extend(list(detections_being_handled))
-
-    def select_links(self, links):
-        to_apply = []
-        detections_being_handled = set()
+    async def _run_links(self, links):
         for link in links:
-            if link.ability.tactic == 'detection':
-                to_apply.append(link)
-            elif any(uf not in self.handled_detection_and_response_links for uf in link.used) and \
-                    link.ability.tactic in ['hunt', 'response']:
-                to_apply.append(link)
-                if link.ability.tactic == 'response':
-                    detections_being_handled.update(link.used)
-        return to_apply, detections_being_handled
+            self.operation.apply(link)
+
+
+
+
+
+
+    # async def execute(self, **kwargs):
+    #     links = await self.planning_svc.get_links(operation=self.operation,
+    #                                               stopping_conditions=self.stopping_conditions, planner=self)
+    #     to_apply, detections_being_handled = self.select_links(links)
+    #     for link in to_apply:
+    #         await self.operation.apply(link)
+    #     self.handled_detection_and_response_links.extend(list(detections_being_handled))
+    #
+    # def select_links(self, links):
+    #     to_apply = []
+    #     detections_being_handled = set()
+    #     for link in links:
+    #         if link.ability.tactic == 'detection':
+    #             to_apply.append(link)
+    #         elif any(uf not in self.handled_detection_and_response_links for uf in link.used) and \
+    #                 link.ability.tactic in ['hunt', 'response']:
+    #             to_apply.append(link)
+    #             if link.ability.tactic == 'response':
+    #                 detections_being_handled.update(link.used)
+    #     return to_apply, detections_being_handled
