@@ -8,6 +8,7 @@ access = BaseWorld.Access.BLUE
 
 
 async def enable(services):
+    BaseWorld.apply_config('response', BaseWorld.strip_yml('plugins/response/conf/response.yml')[0])
     response_svc = ResponseService(services)
     app = services.get('app_svc').application
     app.router.add_route('GET', '/plugin/responder/gui', response_svc.splash)

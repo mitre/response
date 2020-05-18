@@ -10,10 +10,6 @@ from app.objects.c_source import Source
 from app.utility.base_service import BaseService
 
 
-BLUE_ADVERSARY = 'f61e3fc0-43d8-4b36-b5d3-710610b92974'
-BLUE_OP_NAME = 'Auto-Collect'
-
-
 async def handle_link_completed(socket, path, services):
     data = json.loads(await socket.recv())
     paw = data['agent']['paw']
@@ -72,7 +68,8 @@ class ResponseService(BaseService):
 
     async def refresh_blue_agents_abilities(self):
         self.agents = await self.data_svc.locate('agents', match=dict(access=self.Access.BLUE))
-        self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=BLUE_ADVERSARY)))[0]
+        blue_adversary = self.get_config(prop='adversary', name='response')
+        self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
 
         self.abilities = []
         for a in self.adversary.atomic_ordering:
@@ -122,7 +119,8 @@ class ResponseService(BaseService):
     async def create_operation(self, links, source):
         planner = (await self.get_service('data_svc').locate('planners', match=dict(name='batch')))[0]
         await self.get_service('data_svc').store(source)
-        self.op = Operation(name=BLUE_OP_NAME, agents=self.agents, adversary=self.adversary,
+        blue_op_name = self.get_config(prop='op_name', name='response')
+        self.op = Operation(name=blue_op_name, agents=self.agents, adversary=self.adversary,
                             source=source, access=self.Access.BLUE, planner=planner, state='running',
                             auto_close=False, jitter='1/4')
         self.op.set_start_details()
