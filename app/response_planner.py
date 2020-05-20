@@ -7,8 +7,8 @@ class LogicalPlanner:
         self.stopping_condition_met = False
         self.state_machine = ['detection', 'hunt', 'response']
         self.next_bucket = 'detection'
-        self.links_hunted = []
-        self.links_responded = []
+        self.links_hunted = set()
+        self.links_responded = set()
         self.severity = 0
 
     async def execute(self):
@@ -19,25 +19,34 @@ class LogicalPlanner:
         self.next_bucket = await self.planning_svc.default_next_bucket('detection', self.state_machine)
 
     async def hunt(self):
-        links = self.planning_svc.get_links(planner=self, operation=self.operation, bucket=['hunt'])
-        to_apply = []
-        for link in links:
-            if any(parent not in self.links_hunted for parent in self._get_parent_links(link)):  # Put this in a function that returns unaddressed parent links
-                to_apply.append(link)
-        await self._run_links(to_apply)   # Finish this method
+        await self._do_reactive_bucket(bucket='hunt', link_storage=self.links_hunted)
         self.next_bucket = await self.planning_svc.default_next_bucket('hunt', self.state_machine)
-        pass
 
     async def response(self):
-        links = self.planning_svc.get_links(planner=self, operation=self.operation, bucket=['response'])
-        self.next_bucket = 'detection'
-        pass
+        await self._do_reactive_bucket(bucket='response', link_storage=self.links_responded)
+        self.next_bucket = await self.planning_svc.default_next_bucket('response', self.state_machine)
 
     """ PRIVATE """
 
+    async def _do_reactive_bucket(self, bucket, link_storage):
+        links = self.planning_svc.get_links(planner=self, operation=self.operation, bucket=[bucket])
+        links_to_apply = []
+        links_being_addressed = set()
+        for link in links:
+            unaddressed_parents = self._get_unaddressed_parent_links(link)
+            if len(unaddressed_parents):
+                links_to_apply.append(link)
+                links_being_addressed.update(unaddressed_parents)
+        link_storage.update(list(links_being_addressed))
+        await self._run_links(links_to_apply)
+
+    def _get_unaddressed_parent_links(self, link):
+        return [parent not in self.links_hunted for parent in self._get_parent_links(link)]
+
     def _get_parent_links(self, link):
         parent_links = []
-        parent_links.extend(self._links_with_fact_as_relationship(fact) for fact in link.used)
+        for fact in link.used:
+            parent_links.extend(self._links_with_fact_as_relationship(fact))
         return parent_links
 
     def _links_with_fact_as_relationship(self, fact):
@@ -55,8 +64,10 @@ class LogicalPlanner:
         return False
 
     async def _run_links(self, links):
+        link_ids = []
         for link in links:
-            self.operation.apply(link)
+            link_ids.append(await self.operation.apply(link))
+        self.planning_svc.execute_links(self, self.operation, link_ids, True)
 
 
 
