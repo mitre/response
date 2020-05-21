@@ -1,0 +1,37 @@
+- id: f313a0d7-2327-4f69-8da4-a6efd6135121
+  name: Sensitive File Hashes
+  description: Acquire hashes of sensitive files as a baseline to check if they are changed in the future
+  tactic: baseline
+  technique:
+    attack_id: x
+    name: x
+  repeatable: False
+  platforms:
+    linux:
+      sh:
+        command: |
+         find #{file.sensitive.path} -exec sha256sum {} \;
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+            - source: file.sensitive.path
+              edge: has_hash
+              target: file.sensitive.hash
+    darwin:
+      sh:
+        command: |
+          find #{file.sensitive.path} -exec sha256sum {} \;
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+            - source: file.sensitive.path
+              edge: has_hash
+              target: file.sensitive.hash
+    windows:
+      psh:
+        command: |
+          $hash = (Get-FileHash #{file.sensitive.path} -EA silentlycontinue);
+          $hash.Hash + ' ' + $hash.Path
+        parsers:
+          plugins.response.app.parsers.basic_strip:
+            - source: file.sensitive.path
+              edge: has_hash
+              target: file.sensitive.hash
