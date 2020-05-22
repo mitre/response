@@ -18,9 +18,9 @@ class Parser(BaseParser):
         relationships = []
         for match in self.line(blob.strip()):
             for mp in self.mappers:
-                strings = match.strip.split()
-                source = self.set_value(mp.source, strings[1], [])
-                target = self.set_value(mp.target, strings[0], [])
+                strings = match.strip.split('>')
+                source = strings[1].strip()
+                target = strings[0]
                 relationships.append(
                     Relationship(source=Fact(mp.source, source),
                                  edge=mp.edge,

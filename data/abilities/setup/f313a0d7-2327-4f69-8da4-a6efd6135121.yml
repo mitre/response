@@ -1,7 +1,7 @@
 - id: f313a0d7-2327-4f69-8da4-a6efd6135121
   name: Sensitive File Hashes
   description: Acquire hashes of sensitive files as a baseline to check if they are changed in the future
-  tactic: baseline
+  tactic: setup
   technique:
     attack_id: x
     name: x
@@ -10,27 +10,31 @@
     linux:
       sh:
         command: |
-         find #{file.sensitive.path} -exec sha256sum {} \; 2>/dev/null
+          files=($(find #{file.sensitive.path} 2>/dev/null));
+          for file in ${files[@]}; do hash=$(sha256sum $file | sed 's/[[:blank:]]\+/>/g'); output+="${hash};"; done;
+          echo $output | tr ';' '\n'
         parsers:
-          plugins.stockpile.app.parsers.basic:
+          plugins.response.app.parsers.file_info:
             - source: file.sensitive.path
               edge: has_hash
               target: file.sensitive.hash
     darwin:
       sh:
         command: |
-          find #{file.sensitive.path} -exec sha256sum {} \; 2>/dev/null
+          files=($(find #{file.sensitive.path} 2>/dev/null));
+          for file in ${files[@]}; do hash=$(sha256sum $file | sed 's/[[:blank:]]\+/>/g'); output+="${hash};"; done;
+          echo $output | tr ';' '\n'
         parsers:
-          plugins.stockpile.app.parsers.basic:
+          plugins.response.app.parsers.file_info:
             - source: file.sensitive.path
               edge: has_hash
               target: file.sensitive.hash
     windows:
       psh:
         command: |
-          Get-FileHash #{file.sensitive.path} -EA silentlycontinue | foreach-object {$_.Hash + ' ' + $_.Path}
+          Get-FileHash #{file.sensitive.path} -EA silentlycontinue | foreach-object {$_.Hash + '>' + $_.Path}
         parsers:
-          plugins.response.app.parsers.basic_strip:
+          plugins.response.app.parsers.file_info:
             - source: file.sensitive.path
               edge: has_hash
               target: file.sensitive.hash
