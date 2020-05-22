@@ -10,7 +10,7 @@
     linux:
       sh:
         command: |
-         find #{file.sensitive.path} -exec sha256sum {} \;
+         find #{file.sensitive.path} -exec sha256sum {} \; 2>/dev/null
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
@@ -19,7 +19,7 @@
     darwin:
       sh:
         command: |
-          find #{file.sensitive.path} -exec sha256sum {} \;
+          find #{file.sensitive.path} -exec sha256sum {} \; 2>/dev/null
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
@@ -28,8 +28,7 @@
     windows:
       psh:
         command: |
-          $hash = (Get-FileHash #{file.sensitive.path} -EA silentlycontinue);
-          $hash.Hash + ' ' + $hash.Path
+          Get-FileHash #{file.sensitive.path} -EA silentlycontinue | foreach-object {$_.Hash + ' ' + $_.Path}
         parsers:
           plugins.response.app.parsers.basic_strip:
             - source: file.sensitive.path
