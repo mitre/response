@@ -10,11 +10,40 @@
     linux:
       sh:
         command: |
-          [[ -d /tmp/sensitive_files_backup ]] || mkdir /tmp/sensitive_files_backup;
+          [[ -d /tmp/sensitive_files_backup ]] || mkdir /tmp/sensitive_file_backups;
           files=($(find #{file.sensitive.path} 2>/dev/null));
           output=""
           for file in ${files[@]}; do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13); cp $file /tmp/sensitive_files_backup/$randname; output+="${randname}>${file};" done;
-          echo $output | tr ";" "\n"
+          echo $output | tr ";" "\n";
+        parsers:
+          plugins.response.app.parsers.file_info:
+            - source: file.sensitive.path
+              edge: has_backup
+              target: file.backup.name
+    darwin:
+      sh:
+        command: |
+          [[ -d /tmp/sensitive_files_backup ]] || mkdir /tmp/sensitive_file_backups;
+          files=($(find #{file.sensitive.path} 2>/dev/null));
+          output=""
+          for file in ${files[@]}; do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13); cp $file /tmp/sensitive_files_backup/$randname; output+="${randname}>${file};" done;
+          echo $output | tr ";" "\n";
+        parsers:
+          plugins.response.app.parsers.file_info:
+            - source: file.sensitive.path
+              edge: has_backup
+              target: file.backup.name
+    windows:
+      psh:
+        command: |
+          New-Item -ItemType Directory -Force -Path C:\Users\Public\sensitive_file_backups;
+          $output = '';
+          Get-ChildItem -Path #{file.sensitive.path} | foreach-object {
+            $randname = -join (( 0x41..0x5A) + ( 0x61..0x7A) | Get-Random -Count 13 | % {[char]$_});
+            Copy-Item $_.FullName -Destination "C:\Users\Public\sensitive_file_backups\$randname";
+            $output = "$($output)$($randname)>$($_.FullName)`n"
+          };
+          $output;
         parsers:
           plugins.response.app.parsers.file_info:
             - source: file.sensitive.path
