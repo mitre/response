@@ -12,7 +12,9 @@
       psh:
         command: |
           if (Test-Path C:\Users\Public\malicious_files.txt -PathType Leaf) {
-            Get-Content C:\Users\Public\malicious_files.txt -Raw
+            $hashes = Get-Content C:\Users\Public\malicious_files.txt -Raw;
+            Remove-Item C:\Users\Public\malicious_files.txt;
+            $hashes;
           }
         parsers:
           plugins.response.app.parsers.basic_strip:
