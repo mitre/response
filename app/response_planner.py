@@ -33,20 +33,20 @@ class LogicalPlanner:
         links_to_apply = []
         links_being_addressed = set()
         for link in links:
-            unaddressed_parents = self._get_unaddressed_parent_links(link)
+            unaddressed_parents = self._get_unaddressed_parent_links(link, link_storage)
             if len(unaddressed_parents):
                 links_to_apply.append(link)
                 links_being_addressed.update(unaddressed_parents)
         link_storage.update(list(links_being_addressed))
         await self._run_links(links_to_apply)
 
-    def _get_unaddressed_parent_links(self, link):
-        return [parent not in self.links_hunted for parent in self._get_parent_links(link)]
+    def _get_unaddressed_parent_links(self, link, link_storage):
+        return [parent for parent in self._get_parent_links(link) if parent not in link_storage]
 
     def _get_parent_links(self, link):
-        parent_links = []
+        parent_links = set()
         for fact in link.used:
-            parent_links.extend(self._links_with_fact_as_relationship(fact))
+            parent_links.update(self._links_with_fact_as_relationship(fact))
         return parent_links
 
     def _links_with_fact_as_relationship(self, fact):
@@ -59,7 +59,7 @@ class LogicalPlanner:
     @staticmethod
     def _fact_in_relationship(fact, relationship):
         for f in [relationship.source, relationship.target]:
-            if f.trait == fact.trait and f.value == fact.value:
+            if f and f.trait == fact.trait and f.value == fact.value:
                 return True
         return False
 
