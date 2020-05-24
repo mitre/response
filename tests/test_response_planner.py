@@ -1,7 +1,10 @@
 import pytest
+import random
+import string
 
 from app.objects.c_ability import Ability
 from app.objects.c_adversary import Adversary
+from app.objects.c_agent import Agent
 from app.utility.base_world import BaseWorld
 from app.objects.secondclass.c_fact import Fact
 from app.objects.secondclass.c_link import Link
@@ -18,25 +21,29 @@ def create_abilities(tactic, count):
     atomic_ordering = []
     for i in range(count):
         abilities.append(Ability(ability_id=tactic+str(i), tactic=tactic, executor='sh', platform='linux',
-                                 test=BaseWorld.encode_string(tactic+str(i))))
+                                 test=BaseWorld.encode_string(tactic+str(i)), buckets=[tactic], repeatable=True))
         atomic_ordering.append(tactic+str(i))
     return abilities, atomic_ordering
 
+
+def make_ability(tactic, command, ability_id=None, **kwargs):
+    if not ability_id:
+        ability_id = ''.join(random.choice(string.ascii_letters) for i in range(5))
+    return Ability(ability_id=ability_id, tactic=tactic, buckets=[tactic], executor='sh', platform='linux',
+                   test=BaseWorld.encode_string(command), **kwargs)
+
 @pytest.fixture
-def setup_planner_test(loop, agent, data_svc, init_base_world):
+def setup_planner_test(loop, data_svc, init_base_world):
     abilities = dict()
-    atomic_ordering = []
-    for tactic in ['detection', 'hunt', 'response']:
-        abilities[tactic], ao = create_abilities(tactic, 3)
-        atomic_ordering.extend(ao)
-    tagent = agent(sleep_min=1, sleep_max=2, watchdog=0, executors=['sh'], platform='linux')
+    abilities['detection'], atomic_ordering = create_abilities('detection', 3)
+    tagent = Agent(sleep_min=1, sleep_max=2, watchdog=0, executors=['sh'], platform='linux')
     tsource = Source(id='123', name='test', facts=[], adjustments=[])
     toperation = Operation(name='test1', agents=[tagent], adversary=Adversary(name='test', description='test',
                                                                               atomic_ordering=atomic_ordering,
                                                                               adversary_id='XYZ'),
                            source=tsource)
 
-    for a in [ab for ab in abilities[tactic] for tactic in abilities]:
+    for a in [ab for tactic in abilities for ab in abilities[tactic]]:
         loop.run_until_complete(data_svc.store(a))
 
     loop.run_until_complete(data_svc.store(
@@ -54,27 +61,66 @@ class TestResponsePlanner:
     async def setup_mock_execute_links(self, planner, operation, link_ids, condition_stop):
         return
 
-    def test_do_reactive_bucket(self, loop, mocker, setup_planner_test, planning_svc, capsys):
+    def test_do_detection(self, loop, mocker, setup_planner_test, planning_svc):
+        mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
+        abilities, agent, operation = setup_planner_test
+        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+
+        loop.run_until_complete(planner.detection())
+        assert len(operation.chain) == 3
+
+        loop.run_until_complete(planner.detection())
+        assert len(operation.chain) == 6
+
+    def test_do_hunt(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
         """
         This one needs to test the ability to look for unaddressed parent links, and mark these parents as addressed.
         """
         mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
         abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
         planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        test_rel1 = Relationship(source=test_fact1)
-        test_rel2 = Relationship(source=test_fact1, edge='test_edge', target=test_fact2)
-        link1 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link2 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link3 = Link(command=ability.test, paw=agent.paw, ability=ability)
 
-        loop.run_until_complete(planner._do_reactive_bucket('hunt'))
-        captured = capsys.readouterr()
-        print(captured.out)
-        print(captured.err)
-        assert len(operation.chain) == 3
+        tability = abilities['detection'][0]
+        fact1 = Fact(trait='some.test.fact1', value='fact1')
+        rel1 = Relationship(source=fact1)
+        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link1.facts.append(fact1)
+        link1.relationships.append(rel1)
+        operation.chain.append(link1)
+
+        # need to add links to operation that contain facts, and then test if links that use these facts are added
+        # the parent links should be added
+
+        hunt1 = make_ability(tactic='hunt', command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
+        loop.run_until_complete(data_svc.store(hunt1))
+        operation.adversary.atomic_ordering.append(hunt1.ability_id)
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 2
+        assert hunt1.ability_id in [link.ability.ability_id for link in operation.chain]
+        assert operation.chain[0] in planner.links_hunted
+
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 2
+        assert len(planner.links_hunted) == 1
+
+        # need to add another link that contains facts, and then test if the same test link is applied
+        # the new parent link should also be applied
+
+        rel2 = Relationship(source=fact1)
+        link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link2.relationships.append(rel2)
+        operation.chain.append(link2)
+
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 4
+        assert len([link.ability.ability_id for link in operation.chain if link.ability.ability_id == hunt1.ability_id]) == 2
+        assert operation.chain[2] in planner.links_hunted
+
+        # attempting this again shouldn't work
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 4
+        assert len(planner.links_hunted) == 2
+
 
     def test_run_links(self, loop, mocker, setup_planner_test, planning_svc):
         mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)

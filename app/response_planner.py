@@ -36,16 +36,13 @@ class LogicalPlanner:
         links_being_addressed = set()
         for link in links:
             if link.used:
-                print('link used facts')
                 unaddressed_parents = self._get_unaddressed_parent_links(link, link_storage)
                 if len(unaddressed_parents):
                     links_to_apply.append(link)
                     links_being_addressed.update(unaddressed_parents)
             else:
-                print('link used no facts')
                 links_to_apply.append(link)
         link_storage.update(list(links_being_addressed))
-        print('hello')
         await self._run_links(links_to_apply)
 
     def _get_link_storage(self, bucket):
