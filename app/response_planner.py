@@ -1,3 +1,6 @@
+from app.objects.c_operation import Operation
+from app.objects.secondclass.c_requirement import Requirement
+
 class LogicalPlanner:
 
     def __init__(self, operation, planning_svc, stopping_conditions=()):
@@ -53,15 +56,21 @@ class LogicalPlanner:
         return storage[bucket]
 
     def _get_unaddressed_parent_links(self, link, link_storage):
-        return [parent for parent in self._get_parent_links(link) if parent not in link_storage]
+        unaddressed_links = [unaddressed for unaddressed in self._get_parent_links(link) if
+                             unaddressed not in link_storage]
+        unaddressed_parents = []
+        for ul in unaddressed_links:
+            if self._do_link_relationships_satisfy_requirements(link, ul):
+                unaddressed_parents.append(ul)
+        return unaddressed_parents
 
     def _get_parent_links(self, link):
         parent_links = set()
         for fact in link.used:
-            parent_links.update(self._links_with_fact_as_relationship(fact))
+            parent_links.update(self._links_with_fact_in_relationship(fact))
         return parent_links
 
-    def _links_with_fact_as_relationship(self, fact):
+    def _links_with_fact_in_relationship(self, fact):
         links_with_fact = []
         for link in self.operation.chain:
             if any(self._fact_in_relationship(fact, rel) for rel in link.relationships):
@@ -74,6 +83,22 @@ class LogicalPlanner:
             if f and f.trait == fact.trait and f.value == fact.value:
                 return True
         return False
+
+    def _do_link_relationships_satisfy_requirements(self, link, potential_parent):
+        # This method determines if the potential parent link produces at least one fact that isn't part of a
+        # requirement in the target link or has fact(s) that do satisfy the relevant requirement
+        used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
+                      self._fact_in_relationship(fact, rel)]
+        relevant_requirements = []
+        for req in link.requirements:
+            for req_match in req.relationship_match:
+                for fact in used_facts:
+                    if fact.trait in [req_match.source, req_match.target]:
+                        relevant_requirements.append(Requirement(module=req.module, relationship_match=[req_match]))
+        verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
+        verifier_operation.chain.append(potential_parent)
+        return len(self.planning_svc.remove_links_missing_requirements([link], verifier_operation)) if \
+            relevant_requirements else False
 
     async def _run_links(self, links):
         link_ids = []
