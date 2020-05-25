@@ -26,25 +26,24 @@ def create_abilities(tactic, count):
     return abilities, atomic_ordering
 
 
-def make_ability(tactic, command, ability_id=None, **kwargs):
+def create_and_store_ability(test_loop, data_service, op, tactic, command, ability_id=None, **kwargs):
     if not ability_id:
         ability_id = ''.join(random.choice(string.ascii_letters) for i in range(5))
-    return Ability(ability_id=ability_id, tactic=tactic, buckets=[tactic], executor='sh', platform='linux',
-                   test=BaseWorld.encode_string(command), **kwargs)
+    ability = Ability(ability_id=ability_id, tactic=tactic, buckets=[tactic], executor='sh', platform='linux',
+                      test=BaseWorld.encode_string(command), **kwargs)
+    test_loop.run_until_complete(data_service.store(ability))
+    op.adversary.atomic_ordering.append(ability.ability_id)
+    return ability
+
 
 @pytest.fixture
 def setup_planner_test(loop, data_svc, init_base_world):
-    abilities = dict()
-    abilities['detection'], atomic_ordering = create_abilities('detection', 3)
     tagent = Agent(sleep_min=1, sleep_max=2, watchdog=0, executors=['sh'], platform='linux')
     tsource = Source(id='123', name='test', facts=[], adjustments=[])
     toperation = Operation(name='test1', agents=[tagent], adversary=Adversary(name='test', description='test',
-                                                                              atomic_ordering=atomic_ordering,
+                                                                              atomic_ordering=[],
                                                                               adversary_id='XYZ'),
                            source=tsource)
-
-    for a in [ab for tactic in abilities for ab in abilities[tactic]]:
-        loop.run_until_complete(data_svc.store(a))
 
     loop.run_until_complete(data_svc.store(
         Obfuscator(name='plain-text',
@@ -52,7 +51,7 @@ def setup_planner_test(loop, data_svc, init_base_world):
                    module='plugins.stockpile.app.obfuscators.plain_text')
     ))
 
-    yield abilities, tagent, toperation
+    yield tagent, toperation
 
 
 class TestResponsePlanner:
@@ -61,9 +60,14 @@ class TestResponsePlanner:
     async def setup_mock_execute_links(self, planner, operation, link_ids, condition_stop):
         return
 
-    def test_do_detection(self, loop, mocker, setup_planner_test, planning_svc):
+    def test_do_detection(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
         mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
-        abilities, agent, operation = setup_planner_test
+        agent, operation = setup_planner_test
+        abilities = []
+        for i in range(3):
+            abilities.append(create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation,
+                                                      tactic='detection', command='detection'+str(i),
+                                                      ability_id='detection'+str(i), repeatable=True))
         planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
 
         loop.run_until_complete(planner.detection())
@@ -72,183 +76,61 @@ class TestResponsePlanner:
         loop.run_until_complete(planner.detection())
         assert len(operation.chain) == 6
 
-    def test_do_hunt(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+    def test_do_hunt_no_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
         """
         This one needs to test the ability to look for unaddressed parent links, and mark these parents as addressed.
         """
         mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
-        abilities, agent, operation = setup_planner_test
+        agent, operation = setup_planner_test
         planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
 
-        tability = abilities['detection'][0]
+        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
+                                            command='detection0', ability_id='detection0', repeatable=True)
         fact1 = Fact(trait='some.test.fact1', value='fact1')
-        rel1 = Relationship(source=fact1)
+        fact2 = Fact(trait='some.test.fact2', value='fact2')
+        rel1 = Relationship(source=fact1, edge='edge', target=fact2)
+
         link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
         link1.facts.append(fact1)
+        link1.facts.append(fact2)
         link1.relationships.append(rel1)
         operation.chain.append(link1)
 
-        # need to add links to operation that contain facts, and then test if links that use these facts are added
-        # the parent links should be added
+        hunt1 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
+                                         command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
+        hunt2 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
+                                         command='#{some.test.fact1} #{some.test.fact2}', ability_id='hunt2',
+                                         repeatable=True)
 
-        hunt1 = make_ability(tactic='hunt', command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
-        loop.run_until_complete(data_svc.store(hunt1))
-        operation.adversary.atomic_ordering.append(hunt1.ability_id)
         loop.run_until_complete(planner.hunt())
-        assert len(operation.chain) == 2
+        assert len(operation.chain) == 3
         assert hunt1.ability_id in [link.ability.ability_id for link in operation.chain]
+        assert hunt2.ability_id in [link.ability.ability_id for link in operation.chain]
         assert operation.chain[0] in planner.links_hunted
 
-        loop.run_until_complete(planner.hunt())
-        assert len(operation.chain) == 2
-        assert len(planner.links_hunted) == 1
-
-        # need to add another link that contains facts, and then test if the same test link is applied
-        # the new parent link should also be applied
-
-        rel2 = Relationship(source=fact1)
         link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        rel2 = Relationship(source=fact2)
         link2.relationships.append(rel2)
         operation.chain.append(link2)
 
         loop.run_until_complete(planner.hunt())
-        assert len(operation.chain) == 4
-        assert len([link.ability.ability_id for link in operation.chain if link.ability.ability_id == hunt1.ability_id]) == 2
-        assert operation.chain[2] in planner.links_hunted
+        assert len(operation.chain) == 5
+        assert len([link.ability.ability_id for link in operation.chain if
+                    link.ability.ability_id == hunt2.ability_id]) == 2
+        assert operation.chain[3] in planner.links_hunted
 
-        # attempting this again shouldn't work
+        link1_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link1_clone.relationships.append(rel1)
+        operation.chain.append(link1_clone)
+        link2_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link2_clone.relationships.append(rel2)
+        operation.chain.append(link2_clone)
+
         loop.run_until_complete(planner.hunt())
-        assert len(operation.chain) == 4
-        assert len(planner.links_hunted) == 2
-
-
-    def test_run_links(self, loop, mocker, setup_planner_test, planning_svc):
-        mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
-        abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        test_rel1 = Relationship(source=test_fact1)
-        test_rel2 = Relationship(source=test_fact1, edge='test_edge', target=test_fact2)
-        link1 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link2 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link3 = Link(command=ability.test, paw=agent.paw, ability=ability)
-
-        loop.run_until_complete(planner._run_links([link1]))
-        assert len(operation.chain) == 1
-        assert link1 in operation.chain
-
-        loop.run_until_complete(planner._run_links([link2, link3]))
-        assert len(operation.chain) == 3
-        assert link2 in operation.chain
-        assert link3 in operation.chain
-
-    def test_get_link_storage(self, setup_planner_test, planning_svc):
-        abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        link1 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link2 = Link(command=ability.test, paw=agent.paw, ability=ability)
-
-        planner.links_hunted.add(link1)
-        planner.links_responded.add(link2)
-
-        assert link1 in planner._get_link_storage('hunt')
-        assert link2 in planner._get_link_storage('response')
-
-    def test_get_unaddressed_parent_links(self, setup_planner_test, planning_svc):
-        abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        test_rel1 = Relationship(source=test_fact1)
-        test_rel2 = Relationship(source=test_fact1, edge='test_edge', target=test_fact2)
-        link1 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link2 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        operation.chain.extend([link1, link2])
-
-        link3 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link3.used.extend([test_fact1, test_fact2])
-
-        assert not len(planner._get_unaddressed_parent_links(link3, planner.links_hunted))
-
-        link1.relationships.append(test_rel1)
-        assert len(planner._get_unaddressed_parent_links(link3, planner.links_hunted)) == 1
-        assert link1 in planner._get_unaddressed_parent_links(link3, planner.links_hunted)
-
-        link2.relationships.append(test_rel2)
-        assert len(planner._get_unaddressed_parent_links(link3, planner.links_hunted)) == 2
-        assert link1 in planner._get_unaddressed_parent_links(link3, planner.links_hunted)
-        assert link2 in planner._get_unaddressed_parent_links(link3, planner.links_hunted)
-
-        planner.links_hunted.add(link1)
-        assert len(planner._get_unaddressed_parent_links(link3, planner.links_hunted)) == 1
-        assert link2 in planner._get_unaddressed_parent_links(link3, planner.links_hunted)
-
-        planner.links_hunted.add(link2)
-        assert not len(planner._get_unaddressed_parent_links(link3, planner.links_hunted))
-
-    def test_get_parent_links(self, setup_planner_test, planning_svc):
-        abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        test_rel1 = Relationship(source=test_fact1)
-        test_rel2 = Relationship(source=test_fact1, edge='test_edge', target=test_fact2)
-        link1 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link2 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        operation.chain.extend([link1, link2])
-
-        link3 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link3.used.extend([test_fact1, test_fact2])
-
-        assert not len(planner._get_parent_links((link3)))
-
-        link1.relationships.append(test_rel1)
-        assert len(planner._get_parent_links((link3))) == 1
-        assert link1 in planner._get_parent_links((link3))
-
-        link2.relationships.append(test_rel2)
-        assert len(planner._get_parent_links((link3))) == 2
-        assert link1 in planner._get_parent_links((link3))
-        assert link2 in planner._get_parent_links((link3))
-
-    def test_links_with_fact_as_relationship(self, setup_planner_test, planning_svc):
-        abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        test_rel1 = Relationship(source=test_fact1)
-        test_rel2 = Relationship(source=test_fact1, edge='test_edge', target=test_fact2)
-        link1 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        link2 = Link(command=ability.test, paw=agent.paw, ability=ability)
-        operation.chain.extend([link1, link2])
-
-        assert not len(planner._links_with_fact_as_relationship(test_fact1))
-        assert not len(planner._links_with_fact_as_relationship(test_fact2))
-
-        link1.relationships.append(test_rel1)
-        assert len(planner._links_with_fact_as_relationship(test_fact1)) is 1
-        assert not len(planner._links_with_fact_as_relationship(test_fact2))
-
-        link2.relationships.append(test_rel2)
-        assert len(planner._links_with_fact_as_relationship(test_fact1)) is 2
-        assert len(planner._links_with_fact_as_relationship(test_fact2)) is 1
-
-    def test_fact_in_relationship(self, setup_planner_test, planning_svc):
-        abilities, agent, operation = setup_planner_test
-        ability = abilities['detection'][0]
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        test_fact1 = Fact(trait='test_trait1', value='test_value1')
-        test_fact2 = Fact(trait='test_trait2', value='test_value2')
-        test_rel1 = Relationship(source=test_fact1)
-        test_rel2 = Relationship(source=test_fact1, edge='test_edge', target=test_fact2)
-        assert planner._fact_in_relationship(test_fact1, test_rel1)
-        assert not planner._fact_in_relationship(test_fact2, test_rel1)
-        assert planner._fact_in_relationship(test_fact2, test_rel2)
+        assert len(operation.chain) == 9
+        assert len([link.ability.ability_id for link in operation.chain if
+                    link.ability.ability_id == hunt1.ability_id]) == 2
+        assert len([link.ability.ability_id for link in operation.chain if
+                    link.ability.ability_id == hunt2.ability_id]) == 3
+        assert operation.chain[5] in planner.links_hunted
+        assert operation.chain[6] in planner.links_hunted
