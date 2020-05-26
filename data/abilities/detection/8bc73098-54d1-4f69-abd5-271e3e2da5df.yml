@@ -28,7 +28,7 @@
             if ! test -z "$jobs";
               then IFS=$(echo '\n');
               for job in $jobs;
-                do cron_list="${cron_list}${user}:${job}\n";
+                do cron_list="${cron_list}${user}>${job}\n";
               done;
             fi;
           done;
@@ -37,7 +37,7 @@
           unset IFS;
           comm -13 /tmp/baseline_cronjobs_list.txt /tmp/new_cronjobs_list.txt;
         parsers:
-          plugins.response.app.parsers.cronjob:
+          plugins.response.app.parsers.key_value:
             - source: host.user.name
               edge: has_cronjob
               target: host.new.cronjob

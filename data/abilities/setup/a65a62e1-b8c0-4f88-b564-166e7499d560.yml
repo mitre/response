@@ -23,7 +23,7 @@
             if ! test -z "$jobs";
               then IFS=$(echo '\n');
               for job in $jobs;
-                do cron_list="${cron_list}${user}:${job}\n";
+                do cron_list="${cron_list}${user}>${job}\n";
               done;
             fi;
           done;
@@ -42,7 +42,7 @@
             if ! test -z "$jobs";
               then IFS=$(echo '\n');
               for job in $jobs;
-                do cron_list="${cron_list}${user}:${job}\n";
+                do cron_list="${cron_list}${user}>${job}\n";
               done;
             fi;
           done;
