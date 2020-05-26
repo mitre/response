@@ -11,10 +11,13 @@
       sh:
         command: |
           files=($(find #{file.sensitive.path} 2>/dev/null));
-          for file in ${files[@]}; do hash=$(sha256sum $file | sed 's/[[:blank:]]\+/>/g'); output+="${hash};"; done;
-          echo $output | tr ';' '\n'
+          for file in ${files[@]};
+            do hash=$(sha256sum $file | cut -d'>' -f1);
+            output+="${file}>${hash}\n";
+          done;
+          echo $output | sed '/^[[:space:]]*$/d'
         parsers:
-          plugins.response.app.parsers.file_info:
+          plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_hash
               target: file.sensitive.hash
@@ -22,19 +25,22 @@
       sh:
         command: |
           files=($(find #{file.sensitive.path} 2>/dev/null));
-          for file in ${files[@]}; do hash=$(sha256sum $file | sed 's/[[:blank:]]\+/>/g'); output+="${hash};"; done;
-          echo $output | tr ';' '\n'
+          for file in ${files[@]};
+            do hash=$(sha256sum $file | cut -d'>' -f1);
+            output+="${file}>${hash}\n";
+          done;
+          echo $output | sed '/^[[:space:]]*$/d'
         parsers:
-          plugins.response.app.parsers.file_info:
+          plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_hash
               target: file.sensitive.hash
     windows:
       psh:
         command: |
-          Get-FileHash #{file.sensitive.path} -EA silentlycontinue | foreach-object {$_.Hash + '>' + $_.Path}
+          Get-FileHash #{file.sensitive.path} -EA silentlycontinue | foreach-object {$_.Path + '>' + $_.Hash}
         parsers:
-          plugins.response.app.parsers.file_info:
+          plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_hash
               target: file.sensitive.hash

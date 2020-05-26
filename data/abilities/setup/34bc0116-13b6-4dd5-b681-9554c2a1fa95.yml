@@ -13,10 +13,10 @@
           [[ -d /tmp/sensitive_files_backup ]] || mkdir /tmp/sensitive_file_backups;
           files=($(find #{file.sensitive.path} 2>/dev/null));
           output=""
-          for file in ${files[@]}; do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13); cp $file /tmp/sensitive_files_backup/$randname; output+="${randname}>${file};" done;
-          echo $output | tr ";" "\n";
+          for file in ${files[@]}; do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13); cp $file /tmp/sensitive_files_backup/$randname; output+="${file}>${randname}\n" done;
+          echo $output | sed '/^[[:space:]]*$/d'
         parsers:
-          plugins.response.app.parsers.file_info:
+          plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name
@@ -26,10 +26,10 @@
           [[ -d /tmp/sensitive_files_backup ]] || mkdir /tmp/sensitive_file_backups;
           files=($(find #{file.sensitive.path} 2>/dev/null));
           output=""
-          for file in ${files[@]}; do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13); cp $file /tmp/sensitive_files_backup/$randname; output+="${randname}>${file};" done;
-          echo $output | tr ";" "\n";
+          for file in ${files[@]}; do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13); cp $file /tmp/sensitive_files_backup/$randname; output+="${file}>${randname}\n" done;
+          echo $output | sed '/^[[:space:]]*$/d'
         parsers:
-          plugins.response.app.parsers.file_info:
+          plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name
@@ -45,7 +45,7 @@
           };
           $output;
         parsers:
-          plugins.response.app.parsers.file_info:
+          plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name

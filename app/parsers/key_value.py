@@ -5,8 +5,9 @@ from app.utility.base_parser import BaseParser
 
 class Parser(BaseParser):
     """
-    Expects file hashes to be provided in the format:
-    <hash> <filepath>
+    Expects info to be given in the following format:
+    ** source>target
+    where source is the key and target is the value.
 
     Saves the following relationship
     - source: filepath
@@ -19,8 +20,8 @@ class Parser(BaseParser):
         for match in self.line(blob.strip()):
             for mp in self.mappers:
                 strings = match.strip.split('>')
-                source = strings[1].strip()
-                target = strings[0]
+                source = strings[0].strip()
+                target = strings[1].strip()
                 relationships.append(
                     Relationship(source=Fact(mp.source, source),
                                  edge=mp.edge,
