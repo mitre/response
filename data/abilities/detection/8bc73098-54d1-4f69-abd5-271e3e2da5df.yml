@@ -39,5 +39,28 @@
         parsers:
           plugins.response.app.parsers.key_value:
             - source: host.user.name
-              edge: has_cronjob
+              edge: has_new_cronjob
+              target: host.new.cronjob
+    darwin:
+      sh:
+        command: |
+          cron_list='';
+          set -f;
+          for user in $(getent passwd | cut -f1 -d: );
+            do jobs=$(sudo crontab -u $user -l 2>/dev/null | grep -v '\#');
+            if ! test -z "$jobs";
+              then IFS=$(echo '\n');
+              for job in $jobs;
+                do cron_list="${cron_list}${user}>${job}\n";
+              done;
+            fi;
+          done;
+          echo $cron_list | sed '/^[[:space:]]*$/d' | sort > /tmp/new_cronjobs_list.txt;
+          set +f;
+          unset IFS;
+          comm -13 /tmp/baseline_cronjobs_list.txt /tmp/new_cronjobs_list.txt;
+        parsers:
+          plugins.response.app.parsers.key_value:
+            - source: host.user.name
+              edge: has_new_cronjob
               target: host.new.cronjob
