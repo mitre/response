@@ -10,7 +10,9 @@ from app.objects.secondclass.c_fact import Fact
 from app.objects.secondclass.c_link import Link
 from app.objects.c_obfuscator import Obfuscator
 from app.objects.c_operation import Operation
+from app.objects.c_planner import Planner
 from app.objects.secondclass.c_relationship import Relationship
+from app.objects.secondclass.c_requirement import Requirement
 from app.objects.c_source import Source
 
 from plugins.response.app.response_planner import LogicalPlanner as ResponsePlanner
@@ -76,7 +78,7 @@ class TestResponsePlanner:
         loop.run_until_complete(planner.detection())
         assert len(operation.chain) == 6
 
-    def test_do_hunt_no_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+    def test_hunt_no_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
         """
         This one needs to test the ability to look for unaddressed parent links, and mark these parents as addressed.
         """
@@ -134,3 +136,63 @@ class TestResponsePlanner:
                     link.ability.ability_id == hunt2.ability_id]) == 3
         assert operation.chain[5] in planner.links_hunted
         assert operation.chain[6] in planner.links_hunted
+
+    def test_hunt_with_paw_provenance(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+
+        assert True
+
+    def test_do_link_relationships_satisfy_requirements_paw_prov(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+        agent, operation = setup_planner_test
+        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
+        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+        operation.planner = planner
+
+        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
+                                            command='detection0', ability_id='detection0', repeatable=True)
+        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
+        rel1 = Relationship(source=fact1)
+        link1.facts.append(fact1)
+        link1.relationships.append(rel1)
+        # operation.chain.append(link1)
+
+        ability_paw_prov = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
+                                                    command='#{some.test.fact1}', ability_id='test1', repeatable=True)
+        ability_paw_prov.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                                                         relationship_match=[dict(source='some.test.fact1')]))
+
+        link_paw_prov = Link(command='#{some.test.fact1}', paw=agent.paw, ability=ability_paw_prov)
+        link_paw_prov.used.append(fact1)
+        assert not loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_paw_prov, link1))
+
+        fact1.collected_by = agent.paw
+        assert loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_paw_prov, link1))
+
+    def test_do_link_relationships_satisfy_requirements_basic_req(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+        agent, operation = setup_planner_test
+        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
+        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+        operation.planner = planner
+
+        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
+                                            command='detection0', ability_id='detection0', repeatable=True)
+        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by=agent.paw)
+        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
+        rel1 = Relationship(source=fact1, edge='wrong_edge', target=fact2)
+        link1.facts.extend([fact1, fact2])
+        link1.relationships.append(rel1)
+
+        ability_basic_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
+                                                     command='#{some.test.fact1}', ability_id='test1', repeatable=True)
+        ability_basic_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
+                                                          relationship_match=[dict(source='some.test.fact1',
+                                                                                   edge='right_edge',
+                                                                                   target='some.test.fact2')]))
+        link_basiq_req = Link(command='#{some.test.fact1} #{some.test.fact2}', paw=agent.paw, ability=ability_basic_req)
+        link_basiq_req.used.extend([fact1, fact2])
+        assert not loop.run_until_complete(
+            response_planner._do_link_relationships_satisfy_requirements(link_basiq_req, link1))
+
+        rel1.edge = 'right_edge'
+        assert loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_basiq_req, link1))

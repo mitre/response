@@ -84,20 +84,20 @@ class LogicalPlanner:
                 return True
         return False
 
-    def _do_link_relationships_satisfy_requirements(self, link, potential_parent):
+    async def _do_link_relationships_satisfy_requirements(self, link, potential_parent):
         # This method determines if the potential parent link produces at least one fact that isn't part of a
         # requirement in the target link or has fact(s) that do satisfy the relevant requirement
         used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
                       self._fact_in_relationship(fact, rel)]
         relevant_requirements = []
-        for req in link.requirements:
+        for req in link.ability.requirements:
             for req_match in req.relationship_match:
                 for fact in used_facts:
-                    if fact.trait in [req_match.source, req_match.target]:
+                    if fact.trait == req_match['source'] or 'target' in req_match and fact.trait == req_match['target']:
                         relevant_requirements.append(Requirement(module=req.module, relationship_match=[req_match]))
         verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
         verifier_operation.chain.append(potential_parent)
-        return len(self.planning_svc.remove_links_missing_requirements([link], verifier_operation)) if \
+        return len(await self.planning_svc.remove_links_missing_requirements([link], verifier_operation)) if \
             relevant_requirements else False
 
     async def _run_links(self, links):
