@@ -89,7 +89,8 @@ class ResponseService(BaseService):
         return facts, links
 
     async def run_ability_on_agent(self, blue_agent, ability_id, agent_facts, original_pid):
-        links = await self.rest_svc.task_agent_with_ability(blue_agent.paw, ability_id, agent_facts)
+        links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
+                                                            obfuscator='plain-text', facts=agent_facts)
         await self.wait_for_link_completion(links, blue_agent)
         ability_facts = []
         for link in links:
