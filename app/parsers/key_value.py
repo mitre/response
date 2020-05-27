@@ -19,7 +19,7 @@ class Parser(BaseParser):
         relationships = []
         for match in self.line(blob.strip()):
             for mp in self.mappers:
-                strings = match.strip.split('>')
+                strings = match.split('>')
                 source = strings[0].strip()
                 target = strings[1].strip()
                 relationships.append(
