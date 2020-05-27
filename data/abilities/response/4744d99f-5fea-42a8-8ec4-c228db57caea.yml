@@ -6,12 +6,11 @@
   technique:
     attack_id: x
     name: x
-  repeatable: True
   platforms:
     windows:
       psh:
         command: |
-          Unregister-ScheduledTask -TaskName #{host.new.schtask}
+          Unregister-ScheduledTask -TaskName #{host.new.schtask} -Confirm:$false
   requirements:
     - plugins.stockpile.app.requirements.paw_provenance:
         - source: host.new.schtask
