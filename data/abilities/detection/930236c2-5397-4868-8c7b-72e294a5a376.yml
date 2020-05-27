@@ -10,33 +10,23 @@
     linux:
       sh:
         command: |
-          test -f #{file.sensitive.path} && if [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ]; then echo #{file.sensitive.path}; fi
+          if [ ! -f dir1/test.txt ] || [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
+            then echo #{file.sensitive.path};
+          fi
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
               edge: has_been_modified
-        requirements:
-          - plugins.stockpile.app.requirements.basic:
-            - source: file.sensitive.path
-              edge: has_hash
-              target: file.sensitive.hash
-          - plugins.stockpile.app.requirements.paw_provenance:
-            - source: file.sensitive.hash
     darwin:
       sh:
         command: |
-          test -f #{file.sensitive.path} && if [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ]; then echo #{file.sensitive.path}; fi
+          if [ ! -f dir1/test.txt ] || [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
+            then echo #{file.sensitive.path};
+          fi
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
               edge: has_been_modified
-        requirements:
-          - plugins.stockpile.app.requirements.basic:
-            - source: file.sensitive.path
-              edge: has_hash
-              target: file.sensitive.hash
-          - plugins.stockpile.app.requirements.paw_provenance:
-              - source: file.sensitive.hash
     windows:
       cmd:
         command: |
@@ -45,10 +35,10 @@
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
               edge: has_been_modified
-        requirements:
-          - plugins.stockpile.app.requirements.basic:
-            - source: file.sensitive.path
-              edge: has_hash
-              target: file.sensitive.hash
-          - plugins.stockpile.app.requirements.paw_provenance:
-              - source: file.sensitive.hash
+  requirements:
+    - plugins.stockpile.app.requirements.basic:
+      - source: file.sensitive.path
+        edge: has_hash
+        target: file.sensitive.hash
+    - plugins.stockpile.app.requirements.paw_provenance:
+        - source: file.sensitive.hash
