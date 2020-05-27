@@ -1,6 +1,6 @@
 ---
 - id: 8bc73098-54d1-4f69-abd5-271e3e2da5df
-  name: New scheduled tasks
+  name: New Scheduled Tasks
   description: Checks to see if a new (unauthorized) scheduled task has been added
   tactic: detection
   technique:
