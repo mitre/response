@@ -1,0 +1,8 @@
+id: test
+name: test defender
+description: test
+atomic_ordering:
+  - f313a0d7-2327-4f69-8da4-a6efd6135121
+  - 34bc0116-13b6-4dd5-b681-9554c2a1fa95
+  - 930236c2-5397-4868-8c7b-72e294a5a376
+  - e846973a-767b-4f9c-8b9e-5249cfcd7b97

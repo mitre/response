@@ -11,14 +11,17 @@
       sh:
         command: |
           mkdir -p /tmp/sensitive_file_backups;
-          files=$(find #{file.sensitive.path} 2>/dev/null);
+          filepath=$(echo "#{file.sensitive.path}" | sed 's/\\\*/\*/g');
+          files=$(find $filepath 2>/dev/null);
           output="";
-          for file in ${files[@]};
+          for file in $files;
             do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);
             cp $file /tmp/sensitive_file_backups/$randname;
             output="${output}${file}>${randname}\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'
+        cleanup: |
+          rm -rf /tmp/sensitive_file_backups;
         parsers:
           plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
@@ -30,12 +33,14 @@
           mkdir -p /tmp/sensitive_file_backups;
           files=$(find #{file.sensitive.path} 2>/dev/null);
           output="";
-          for file in ${files[@]};
+          for file in $files;
             do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);
             cp $file /tmp/sensitive_file_backups/$randname;
             output="${output}${file}>${randname}\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'
+        cleanup: |
+          rm -rf /tmp/sensitive_file_backups;
         parsers:
           plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
@@ -57,3 +62,6 @@
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name
+  requirements:
+    - plugins.response.app.requirements.source_fact:
+      - source: file.sensitive.path

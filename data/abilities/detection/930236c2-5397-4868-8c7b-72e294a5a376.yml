@@ -10,8 +10,9 @@
     linux:
       sh:
         command: |
-          if [ ! -f dir1/test.txt ] || [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
-            then echo #{file.sensitive.path};
+          filepath="#{file.sensitive.path}";
+          if [ ! -f $filepath ] || [ "$(sha256sum $filepath | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
+            then echo $filepath;
           fi
         parsers:
           plugins.stockpile.app.parsers.basic:
@@ -20,7 +21,7 @@
     darwin:
       sh:
         command: |
-          if [ ! -f dir1/test.txt ] || [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
+          if [ ! -f #{file.sensitive.path} ] || [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
             then echo #{file.sensitive.path};
           fi
         parsers:
