@@ -12,38 +12,6 @@
       psh:
         command: |
           Unregister-ScheduledTask -TaskName #{host.new.schtask}
-        requirements:
-          - plugins.stockpile.app.requirements.paw_provenance:
-              - source: host.new.schtask
-    linux:
-      sh:
-        command: |
-          line=$(echo '#{host.new.cronjob}' | sed 's/\*/\\\*/g');
-          crontab -u #{host.user.name} -l > temp_crontab;
-          line_number=$(grep -n $line temp_crontab | cut -d':' -f1);
-          sed "${line_number}d" temp_crontab > new_crontab;
-          crontab -u #{host.user.name} new_crontab;
-          rm -f temp_crontab new_crontab;
-        requirements:
-          - plugins.stockpile.app.requirements.basic:
-            - source: host.user.name
-              target: has_new_cronjob
-              edge: host.new.cronjob
-          - plugins.stockpile.app.requirements.paw_provenance:
-            - source: host.new.cronjob
-    darwin:
-      sh:
-        command: |
-          line=$(echo '#{host.new.cronjob}' | sed 's/\*/\\\*/g');
-          crontab -u #{host.user.name} -l > temp_crontab;
-          line_number=$(grep -n $line temp_crontab | cut -d':' -f1);
-          sed "${line_number}d" temp_crontab > new_crontab;
-          crontab -u #{host.user.name} new_crontab;
-          rm -f temp_crontab new_crontab;
-        requirements:
-          - plugins.stockpile.app.requirements.basic:
-              - source: host.user.name
-                target: has_new_cronjob
-                edge: host.new.cronjob
-          - plugins.stockpile.app.requirements.paw_provenance:
-              - source: host.new.cronjob
+  requirements:
+    - plugins.stockpile.app.requirements.paw_provenance:
+        - source: host.new.schtask
