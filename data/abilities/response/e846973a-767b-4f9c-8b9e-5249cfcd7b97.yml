@@ -5,7 +5,7 @@
   technique:
     attack_id: x
     name: x
-  repeatable: True
+  repeatable: False
   platforms:
     linux:
       sh:
