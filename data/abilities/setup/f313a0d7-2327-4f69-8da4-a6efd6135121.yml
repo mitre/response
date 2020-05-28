@@ -1,5 +1,5 @@
 - id: f313a0d7-2327-4f69-8da4-a6efd6135121
-  name: Hash Sensitive File
+  name: Hash Sensitive Files
   description: Acquire hashes of sensitive files as a baseline to check if they are changed in the future
   tactic: setup
   technique:

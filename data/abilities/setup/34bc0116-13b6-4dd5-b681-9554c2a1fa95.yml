@@ -50,12 +50,12 @@
     windows:
       psh:
         command: |
-          New-Item -ItemType Directory -Force -Path C:\Users\Public\sensitive_file_backups;
+          New-Item -ItemType Directory -Force -Path C:\Users\Public\sensitive_file_backups | Out-Null;
           $output = '';
-          Get-ChildItem -Path #{file.sensitive.path} | foreach-object {
+          Get-ChildItem -Path #{file.sensitive.path} -EA silentlycontinue | foreach-object {
             $randname = -join (( 0x41..0x5A) + ( 0x61..0x7A) | Get-Random -Count 13 | % {[char]$_});
             Copy-Item $_.FullName -Destination "C:\Users\Public\sensitive_file_backups\$randname";
-            $output = "$($output)$($randname)>$($_.FullName)`n"
+            $output = "$($output)$($_.FullName)>$($randname)`n"
           };
           $output;
         parsers:

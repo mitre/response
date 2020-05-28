@@ -34,7 +34,7 @@
     windows:
       cmd:
         command: |
-          if (Test-Path -PathType Leaf #{file.sensitive.path}) { if ((Get-FileHash #{file.sensitive.path}).Hash -ne "#{file.sensitive.hash}") { echo #{file.sensitive.path} } }
+          if (-not (Test-Path -PathType Leaf #{file.sensitive.path}) -or (Get-FileHash #{file.sensitive.path}).Hash -ne "#{file.sensitive.hash}") { echo #{file.sensitive.path} }
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
