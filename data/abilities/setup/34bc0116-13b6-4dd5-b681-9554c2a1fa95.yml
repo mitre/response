@@ -31,7 +31,8 @@
       sh:
         command: |
           mkdir -p /tmp/sensitive_file_backups;
-          files=$(find #{file.sensitive.path} 2>/dev/null);
+          filepath=$(echo "#{file.sensitive.path}" | sed 's/\\\*/\*/g');
+          files=$(find $filepath 2>/dev/null);
           output="";
           for file in $files;
             do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);

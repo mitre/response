@@ -20,9 +20,11 @@
         command: |
           Copy-Item "C:\Users\Public\sensitive_file_backups\#{file.backup.name}" -Destination "#{file.sensitive.path}" -Force
   requirements:
-    - plugins.stockpile.app.requirements.basic:
+    - plugins.response.app.requirements.has_property:
         - source: file.sensitive.path
-          edge: has_been_modified
+          edge: has_property
+          target: has_been_modified
+    - plugins.stockpile.app.requirements.basic:
         - source: file.sensitive.path
           edge: has_backup
           target: file.backup.name

@@ -5,14 +5,15 @@ class Requirement(BaseRequirement):
 
     async def enforce(self, link, operation):
         """
-        Given a link and the current operation, check if the link's used fact is from the operation's fact source.
+        Given a link and the current operation, check if the link's used fact has the specified property.
         :param link
         :param operation
         :return: True if it complies, False if it doesn't
         """
+        relationships = operation.all_relationships()
         for uf in link.used:
             if self.enforcements['source'] == uf.trait:
-                if any(uf.trait == source_fact.trait and uf.value == source_fact.value for
-                       source_fact in operation.source.facts):
-                    return True
+                for r in self._get_relationships(uf, relationships):
+                    if r.edge == 'has_property' and r.target.trait == self.enforcements['target']:
+                        return True
         return False

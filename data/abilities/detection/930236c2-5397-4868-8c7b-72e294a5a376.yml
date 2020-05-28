@@ -17,17 +17,20 @@
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
-              edge: has_been_modified
+              edge: has_property
+              target: has_been_modified
     darwin:
       sh:
         command: |
-          if [ ! -f #{file.sensitive.path} ] || [ "$(sha256sum #{file.sensitive.path} | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
-            then echo #{file.sensitive.path};
+          filepath="#{file.sensitive.path}";
+          if [ ! -f $filepath ] || [ "$(sha256sum $filepath | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
+            then echo $filepath;
           fi
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
-              edge: has_been_modified
+              edge: has_property
+              target: has_been_modified
     windows:
       cmd:
         command: |
@@ -35,7 +38,8 @@
         parsers:
           plugins.stockpile.app.parsers.basic:
             - source: file.sensitive.path
-              edge: has_been_modified
+              edge: has_property
+              target: has_been_modified
   requirements:
     - plugins.stockpile.app.requirements.basic:
       - source: file.sensitive.path
