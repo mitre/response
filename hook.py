@@ -12,5 +12,6 @@ async def enable(services):
     response_svc = ResponseService(services)
     app = services.get('app_svc').application
     app.router.add_route('GET', '/plugin/responder/gui', response_svc.splash)
+    app.router.add_route('POST', '/plugin/responder/update', response_svc.update_responder)
 
     await response_svc.register_handler(services.get('event_svc'))

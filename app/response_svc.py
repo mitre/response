@@ -1,7 +1,9 @@
 import asyncio
 import json
 import uuid
+import yaml
 
+from aiohttp import web
 from aiohttp_jinja2 import template
 
 from app.objects.secondclass.c_fact import Fact
@@ -36,7 +38,15 @@ class ResponseService(BaseService):
     async def splash(self, request):
         abilities = [a for a in await self.data_svc.locate('abilities') if await a.which_plugin() == 'response']
         adversaries = [a for a in await self.data_svc.locate('adversaries') if await a.which_plugin() == 'response']
-        return dict(abilities=abilities, adversaries=adversaries)
+        await self._apply_adversary_config()
+        return dict(abilities=abilities, adversaries=adversaries, auto_response=self.adversary)
+
+    async def update_responder(self, request):
+        data = dict(await request.json())
+        self.set_config(name='response', prop='adversary', value=data['adversary_id'])
+        await self._apply_adversary_config()
+        await self._save_configurations()
+        return web.json_response('complete')
 
     @staticmethod
     async def register_handler(event_svc):
@@ -68,8 +78,7 @@ class ResponseService(BaseService):
 
     async def refresh_blue_agents_abilities(self):
         self.agents = await self.data_svc.locate('agents', match=dict(access=self.Access.BLUE))
-        blue_adversary = self.get_config(prop='adversary', name='response')
-        self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
+        await self._apply_adversary_config()
 
         self.abilities = []
         for a in self.adversary.atomic_ordering:
@@ -130,3 +139,11 @@ class ResponseService(BaseService):
         for link in links:
             link.operation = self.op.id
             self.op.add_link(link)
+
+    async def _apply_adversary_config(self):
+        blue_adversary = self.get_config(prop='adversary', name='response')
+        self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
+
+    async def _save_configurations(self):
+        with open('plugins/response/conf/response.yml', 'w') as config:
+            config.write(yaml.dump(self.get_config(name='response')))
