@@ -248,3 +248,62 @@ class TestResponsePlanner:
         link_mult_req.used.append(fact3)
         assert loop.run_until_complete(
             response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link2))
+
+    def test_hunt_with_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+        """
+        This one needs to test the ability to look for unaddressed parent links, and mark these parents as addressed.
+        """
+        mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
+        agent, operation = setup_planner_test
+        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+
+        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
+                                            command='detection0', ability_id='detection0', repeatable=True)
+        fact1 = Fact(trait='some.test.fact1', value='fact1')
+        fact2 = Fact(trait='some.test.fact2', value='fact2')
+        rel1 = Relationship(source=fact1, edge='edge', target=fact2)
+
+        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link1.facts.append(fact1)
+        link1.facts.append(fact2)
+        link1.relationships.append(rel1)
+        operation.chain.append(link1)
+
+        hunt1 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
+                                         command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
+        hunt2 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
+                                         command='#{some.test.fact1} #{some.test.fact2}', ability_id='hunt2',
+                                         repeatable=True)
+
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 3
+        assert hunt1.ability_id in [link.ability.ability_id for link in operation.chain]
+        assert hunt2.ability_id in [link.ability.ability_id for link in operation.chain]
+        assert operation.chain[0] in planner.links_hunted
+
+        link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        rel2 = Relationship(source=fact2)
+        link2.relationships.append(rel2)
+        operation.chain.append(link2)
+
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 5
+        assert len([link.ability.ability_id for link in operation.chain if
+                    link.ability.ability_id == hunt2.ability_id]) == 2
+        assert operation.chain[3] in planner.links_hunted
+
+        link1_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link1_clone.relationships.append(rel1)
+        operation.chain.append(link1_clone)
+        link2_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
+        link2_clone.relationships.append(rel2)
+        operation.chain.append(link2_clone)
+
+        loop.run_until_complete(planner.hunt())
+        assert len(operation.chain) == 9
+        assert len([link.ability.ability_id for link in operation.chain if
+                    link.ability.ability_id == hunt1.ability_id]) == 2
+        assert len([link.ability.ability_id for link in operation.chain if
+                    link.ability.ability_id == hunt2.ability_id]) == 3
+        assert operation.chain[5] in planner.links_hunted
+        assert operation.chain[6] in planner.links_hunted
