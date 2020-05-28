@@ -184,7 +184,8 @@ class TestResponsePlanner:
         link1.relationships.append(rel1)
 
         ability_basic_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
-                                                     command='#{some.test.fact1}', ability_id='test1', repeatable=True)
+                                                     command='#{some.test.fact1} #{some.test.fact2}',
+                                                     ability_id='test1', repeatable=True)
         ability_basic_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
                                                           relationship_match=[dict(source='some.test.fact1',
                                                                                    edge='right_edge',
@@ -196,3 +197,54 @@ class TestResponsePlanner:
 
         rel1.edge = 'right_edge'
         assert loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_basiq_req, link1))
+
+    def test_do_link_relationships_satisfy_requirements_multiple(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+        agent, operation = setup_planner_test
+        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
+        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+        operation.planner = planner
+
+        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
+                                            command='detection0', ability_id='detection0', repeatable=True)
+        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
+        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
+        rel1 = Relationship(source=fact1, edge='wrong_edge', target=fact2)
+        link1.facts.extend([fact1, fact2])
+        link1.relationships.append(rel1)
+
+        ability_mult_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
+                                                    command='#{some.test.fact1} #{some.test.fact2}', ability_id='test1',
+                                                    repeatable=True)
+        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
+                                                         relationship_match=[dict(source='some.test.fact1',
+                                                                                  edge='right_edge',
+                                                                                  target='some.test.fact2')]))
+        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                                                         relationship_match=[dict(source='some.test.fact1')]))
+
+        link_mult_req = Link(command='#{some.test.fact1} #{some.test.fact2}', paw=agent.paw, ability=ability_mult_req)
+        link_mult_req.used.extend([fact1, fact2])
+        assert not loop.run_until_complete(
+            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
+
+        rel1.edge = 'right_edge'
+        assert not loop.run_until_complete(
+            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
+
+        fact1.collected_by = agent.paw
+        assert loop.run_until_complete(
+            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
+
+        link_mult_req.command = '#{some.test.fact1} #{some.test.fact2} #{some.test.fact3}'
+        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                                                         relationship_match=[dict(source='some.test.fact3')]))
+
+        link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
+        fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by=agent.paw)
+        rel2 = Relationship(source=fact3)
+        link2.facts.append(fact3)
+        link2.relationships.append(rel2)
+        link_mult_req.used.append(fact3)
+        assert loop.run_until_complete(
+            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link2))

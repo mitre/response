@@ -1,5 +1,8 @@
+import copy
+
 from app.objects.c_operation import Operation
 from app.objects.secondclass.c_requirement import Requirement
+
 
 class LogicalPlanner:
 
@@ -12,7 +15,7 @@ class LogicalPlanner:
         self.next_bucket = 'detection'
         self.links_hunted = set()
         self.links_responded = set()
-        self.severity = 0
+        self.severity = dict()
 
     async def execute(self):
         await self.planning_svc.execute_planner(self)
@@ -89,16 +92,32 @@ class LogicalPlanner:
         # requirement in the target link or has fact(s) that do satisfy the relevant requirement
         used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
                       self._fact_in_relationship(fact, rel)]
+        relevant_requirements = set()
+        for fact in used_facts:
+            relevant_requirements.update(self._get_relevant_requirements_for_fact_in_link(link, fact))
+        link_with_relevant_reqs, verifier_operation = self._create_test_op_and_link(link, potential_parent,
+                                                                                    list(relevant_requirements))
+        return len(await self.planning_svc.remove_links_missing_requirements([link_with_relevant_reqs],
+                                                                             verifier_operation)) if \
+            relevant_requirements else 0
+
+    @staticmethod
+    def _get_relevant_requirements_for_fact_in_link(link, fact):
         relevant_requirements = []
         for req in link.ability.requirements:
             for req_match in req.relationship_match:
-                for fact in used_facts:
-                    if fact.trait == req_match['source'] or 'target' in req_match and fact.trait == req_match['target']:
-                        relevant_requirements.append(Requirement(module=req.module, relationship_match=[req_match]))
+                if fact.trait == req_match['source'] or 'target' in req_match and fact.trait == req_match['target']:
+                    relevant_requirements.append(Requirement(module=req.module, relationship_match=[req_match]))
+        return relevant_requirements
+
+    def _create_test_op_and_link(self, link, potential_parent, relevant_requirements):
         verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
         verifier_operation.chain.append(potential_parent)
-        return len(await self.planning_svc.remove_links_missing_requirements([link], verifier_operation)) if \
-            relevant_requirements else False
+        link_with_relevant_reqs = copy.copy(link)
+        ability_with_relevant_reqs = copy.copy(link.ability)
+        ability_with_relevant_reqs.requirements = list(relevant_requirements)
+        link_with_relevant_reqs.ability = ability_with_relevant_reqs
+        return link_with_relevant_reqs, verifier_operation
 
     async def _run_links(self, links):
         link_ids = []
