@@ -32,7 +32,7 @@
               edge: has_property
               target: has_been_modified
     windows:
-      cmd:
+      psh:
         command: |
           if (-not (Test-Path -PathType Leaf #{file.sensitive.path}) -or (Get-FileHash #{file.sensitive.path}).Hash -ne "#{file.sensitive.hash}") { echo #{file.sensitive.path} }
         parsers:
