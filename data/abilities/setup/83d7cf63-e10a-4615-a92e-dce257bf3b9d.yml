@@ -1,5 +1,5 @@
 - id: 83d7cf63-e10a-4615-a92e-dce257bf3b9d
-  name: Powershell Profile Backup
+  name: Backup Powershell Profiles
   description: This ability creates backups of Powershell profiles, creating the profiles themselves if they do not exist.
   tactic: setup
   technique:

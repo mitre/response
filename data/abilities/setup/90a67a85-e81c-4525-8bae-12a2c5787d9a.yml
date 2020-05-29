@@ -1,5 +1,5 @@
 - id: 90a67a85-e81c-4525-8bae-12a2c5787d9a
-  name: Powershell Profile Hash
+  name: Hash Powershell Profiles
   description: This ability creates file hashes of Powershell profiles, creating the profiles themselves if they do not exist.
   tactic: setup
   technique:
