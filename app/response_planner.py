@@ -42,7 +42,8 @@ class LogicalPlanner:
         links_being_addressed = set()
         for link in links:
             if link.used:
-                unaddressed_parents = self._get_unaddressed_parent_links(link, link_storage)
+                check_paw_prov = True if bucket in ['response'] else False
+                unaddressed_parents = self._get_unaddressed_parent_links(link, link_storage, check_paw_prov)
                 if len(unaddressed_parents):
                     links_to_apply.append(link)
                     links_being_addressed.update(unaddressed_parents)
@@ -58,8 +59,8 @@ class LogicalPlanner:
         )
         return storage[bucket]
 
-    def _get_unaddressed_parent_links(self, link, link_storage):
-        unaddressed_links = [unaddressed for unaddressed in self._get_parent_links(link) if
+    def _get_unaddressed_parent_links(self, link, link_storage, check_paw_prov=False):
+        unaddressed_links = [unaddressed for unaddressed in self._get_parent_links(link, check_paw_prov) if
                              unaddressed not in link_storage]
         unaddressed_parents = []
         for ul in unaddressed_links:
@@ -67,15 +68,16 @@ class LogicalPlanner:
                 unaddressed_parents.append(ul)
         return unaddressed_parents
 
-    def _get_parent_links(self, link):
+    def _get_parent_links(self, link, check_paw_prov=False):
         parent_links = set()
+        link_paw = link.paw if check_paw_prov else None
         for fact in link.used:
-            parent_links.update(self._links_with_fact_in_relationship(fact))
+            parent_links.update(self._links_with_fact_in_relationship(fact, link_paw))
         return parent_links
 
-    def _links_with_fact_in_relationship(self, fact):
+    def _links_with_fact_in_relationship(self, fact, paw=None):
         links_with_fact = []
-        for link in self.operation.chain:
+        for link in self.operation.chain if paw is None else [lnk for lnk in self.operation.chain if lnk.paw == paw]:
             if any(self._fact_in_relationship(fact, rel) for rel in link.relationships):
                 links_with_fact.append(link)
         return links_with_fact
@@ -95,9 +97,9 @@ class LogicalPlanner:
         relevant_requirements = set()
         for fact in used_facts:
             relevant_requirements.update(self._get_relevant_requirements_for_fact_in_link(link, fact))
-        link_with_relevant_reqs, verifier_operation = self._create_test_op_and_link(link, potential_parent,
-                                                                                    list(relevant_requirements))
-        return len(await self.planning_svc.remove_links_missing_requirements([link_with_relevant_reqs],
+        links_with_relevant_reqs, verifier_operation = self._create_test_op_and_link(link, potential_parent,
+                                                                                     list(relevant_requirements))
+        return len(await self.planning_svc.remove_links_missing_requirements(links_with_relevant_reqs,
                                                                              verifier_operation)) if \
             relevant_requirements else 0
 
@@ -113,11 +115,14 @@ class LogicalPlanner:
     def _create_test_op_and_link(self, link, potential_parent, relevant_requirements):
         verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
         verifier_operation.chain.append(potential_parent)
-        link_with_relevant_reqs = copy.copy(link)
-        ability_with_relevant_reqs = copy.copy(link.ability)
-        ability_with_relevant_reqs.requirements = list(relevant_requirements)
-        link_with_relevant_reqs.ability = ability_with_relevant_reqs
-        return link_with_relevant_reqs, verifier_operation
+        links_with_relevant_reqs = []
+        for rel_req in relevant_requirements:
+            link_with_rel_req = copy.copy(link)
+            ability_with_rel_req = copy.copy(link.ability)
+            ability_with_rel_req.requirements = [rel_req]
+            link_with_rel_req.ability = ability_with_rel_req
+            links_with_relevant_reqs.append(link_with_rel_req)
+        return links_with_relevant_reqs, verifier_operation
 
     async def _run_links(self, links):
         link_ids = []
@@ -127,7 +132,7 @@ class LogicalPlanner:
 
 
 
-
+####### If response, want to make sure "parent" links are from the same agent - check paw provenance
 
 
     # async def execute(self, **kwargs):

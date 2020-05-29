@@ -229,25 +229,13 @@ class TestResponsePlanner:
             response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
 
         rel1.edge = 'right_edge'
-        assert not loop.run_until_complete(
+        assert loop.run_until_complete(
             response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
 
+        rel1.edge = 'wrong_edge'
         fact1.collected_by = agent.paw
         assert loop.run_until_complete(
             response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
-
-        link_mult_req.command = '#{some.test.fact1} #{some.test.fact2} #{some.test.fact3}'
-        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                                                         relationship_match=[dict(source='some.test.fact3')]))
-
-        link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by=agent.paw)
-        rel2 = Relationship(source=fact3)
-        link2.facts.append(fact3)
-        link2.relationships.append(rel2)
-        link_mult_req.used.append(fact3)
-        assert loop.run_until_complete(
-            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link2))
 
     def test_hunt_with_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
         """
@@ -255,19 +243,33 @@ class TestResponsePlanner:
         """
         mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
         agent, operation = setup_planner_test
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
+        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+        operation.planner = planner
 
         tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
                                             command='detection0', ability_id='detection0', repeatable=True)
-        fact1 = Fact(trait='some.test.fact1', value='fact1')
-        fact2 = Fact(trait='some.test.fact2', value='fact2')
-        rel1 = Relationship(source=fact1, edge='edge', target=fact2)
 
         link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        link1.facts.append(fact1)
-        link1.facts.append(fact2)
+        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
+        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
+        rel1 = Relationship(source=fact1, edge='wrong_edge', target=fact2)
+        link1.facts.extend([fact1, fact2])
         link1.relationships.append(rel1)
         operation.chain.append(link1)
+
+        ability_mult_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
+                                                    command='#{some.test.fact1} #{some.test.fact2}', ability_id='test1',
+                                                    repeatable=True)
+        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
+                                                         relationship_match=[dict(source='some.test.fact1',
+                                                                                  edge='right_edge',
+                                                                                  target='some.test.fact2')]))
+        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                                                         relationship_match=[dict(source='some.test.fact1')]))
+
+        # want to add one link with fact1, then test. should fail
+        # add another link with fact1
 
         hunt1 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
                                          command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
@@ -275,22 +277,22 @@ class TestResponsePlanner:
                                          command='#{some.test.fact1} #{some.test.fact2}', ability_id='hunt2',
                                          repeatable=True)
 
-        loop.run_until_complete(planner.hunt())
+        loop.run_until_complete(response_planner.hunt())
         assert len(operation.chain) == 3
         assert hunt1.ability_id in [link.ability.ability_id for link in operation.chain]
         assert hunt2.ability_id in [link.ability.ability_id for link in operation.chain]
-        assert operation.chain[0] in planner.links_hunted
+        assert operation.chain[0] in response_planner.links_hunted
 
         link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
         rel2 = Relationship(source=fact2)
         link2.relationships.append(rel2)
         operation.chain.append(link2)
 
-        loop.run_until_complete(planner.hunt())
+        loop.run_until_complete(response_planner.hunt())
         assert len(operation.chain) == 5
         assert len([link.ability.ability_id for link in operation.chain if
                     link.ability.ability_id == hunt2.ability_id]) == 2
-        assert operation.chain[3] in planner.links_hunted
+        assert operation.chain[3] in response_planner.links_hunted
 
         link1_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
         link1_clone.relationships.append(rel1)
@@ -299,11 +301,11 @@ class TestResponsePlanner:
         link2_clone.relationships.append(rel2)
         operation.chain.append(link2_clone)
 
-        loop.run_until_complete(planner.hunt())
+        loop.run_until_complete(response_planner.hunt())
         assert len(operation.chain) == 9
         assert len([link.ability.ability_id for link in operation.chain if
                     link.ability.ability_id == hunt1.ability_id]) == 2
         assert len([link.ability.ability_id for link in operation.chain if
                     link.ability.ability_id == hunt2.ability_id]) == 3
-        assert operation.chain[5] in planner.links_hunted
-        assert operation.chain[6] in planner.links_hunted
+        assert operation.chain[5] in response_planner.links_hunted
+        assert operation.chain[6] in response_planner.links_hunted
