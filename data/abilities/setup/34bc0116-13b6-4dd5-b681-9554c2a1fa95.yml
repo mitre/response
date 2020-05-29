@@ -20,13 +20,13 @@
             output="${output}${file}>${randname}\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'
-        cleanup: |
-          rm -rf /tmp/sensitive_file_backups;
         parsers:
           plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name
+        cleanup: |
+          rm -rf /tmp/sensitive_file_backups;
     darwin:
       sh:
         command: |
@@ -40,13 +40,13 @@
             output="${output}${file}>${randname}\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'
-        cleanup: |
-          rm -rf /tmp/sensitive_file_backups;
         parsers:
           plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name
+        cleanup: |
+          rm -rf /tmp/sensitive_file_backups;
     windows:
       psh:
         command: |
@@ -63,6 +63,8 @@
             - source: file.sensitive.path
               edge: has_backup
               target: file.backup.name
+        cleanup: |
+          Remove-Item -Recurse -Force C:\Users\Public\sensitive_file_backups;
   requirements:
     - plugins.response.app.requirements.source_fact:
       - source: file.sensitive.path
