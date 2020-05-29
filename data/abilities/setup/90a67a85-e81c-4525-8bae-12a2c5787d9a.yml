@@ -27,7 +27,7 @@
         cleanup: |
           $files = @("$Profile", "$PsHome\Profile.ps1", "$PsHome\Microsoft.Powershell_profile.ps1");
           ForEach ($file in $files) {
-            if ((Get-Content $file) -eq $Null) {
+            if ((Get-Content $file -EA silentlycontinue) -eq $Null) {
               Remove-Item -Path $file -Force -EA silentlycontinue;
             };
           }
