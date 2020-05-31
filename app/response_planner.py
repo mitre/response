@@ -92,17 +92,25 @@ class LogicalPlanner:
 
     async def _do_link_relationships_satisfy_requirements(self, link, potential_parent):
         # Need to add case where if no relevant_requirement for used fact, then return True
-        # Consider changing relevant_requirements to dict of requirement -> fact(s)
+        # Consider changing relevant_requirements to dict of requirement_unique -> (req, [fact(s)])
         used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
                       self._fact_in_relationship(fact, rel)]
-        relevant_requirements = set()
+        relevant_requirements_and_facts = dict()
         for fact in used_facts:
-            relevant_requirements.update(self._get_relevant_requirements_for_fact_in_link(link, fact))
+            rel_reqs_for_fact = self._get_relevant_requirements_for_fact_in_link(link, fact)
+            if not rel_reqs_for_fact:
+                return 1
+            for rel_req in rel_reqs_for_fact:
+                req_unique = self._unique_for_requirement(rel_req)
+                if req_unique in relevant_requirements_and_facts:
+                    relevant_requirements_and_facts[req_unique]['facts'].append(fact)
+                else:
+                    relevant_requirements_and_facts[req_unique] = dict(requirement=rel_req, facts=[fact])
         links_with_relevant_reqs, verifier_operation = self._create_test_op_and_links(link, potential_parent,
-                                                                                      list(relevant_requirements))
+                                                                                      relevant_requirements_and_facts)
         return len(await self.planning_svc.remove_links_missing_requirements(links_with_relevant_reqs,
                                                                              verifier_operation)) if \
-            relevant_requirements else 0
+            relevant_requirements_and_facts else 0
 
     @staticmethod
     def _get_relevant_requirements_for_fact_in_link(link, fact):
@@ -113,7 +121,16 @@ class LogicalPlanner:
                     relevant_requirements.append(Requirement(module=req.module, relationship_match=[req_match]))
         return relevant_requirements
 
-    def _create_test_op_and_links(self, link, potential_parent, relevant_requirements):
+    @staticmethod
+    def _unique_for_requirement(requirement):
+        rel_match = requirement.relationship_match[0]
+        unique = requirement.module + rel_match['source']
+        for field in ['edge', 'target']:
+            if field in rel_match:
+                unique += rel_match[field]
+        return unique
+
+    def _create_test_op_and_links(self, link, potential_parent, relevant_requirements_and_facts):
         """
         This function creates a test operation and test links. The test operation contains a copy of the potential
         parent. This copy link is given all the facts that it produced, determined by
@@ -129,8 +146,7 @@ class LogicalPlanner:
                                       fact in produced_facts]
         potential_parent_copy.facts = replacement_produced_facts
         verifier_operation.chain.append(potential_parent_copy)
-        links_with_relevant_reqs_and_facts = self._create_test_links(link, relevant_requirements,
-                                                                     replacement_produced_facts)
+        links_with_relevant_reqs_and_facts = self._create_test_links(link, relevant_requirements_and_facts)
         return links_with_relevant_reqs_and_facts, verifier_operation
 
     @staticmethod
@@ -148,13 +164,14 @@ class LogicalPlanner:
         return False
 
     @staticmethod
-    def _create_test_links(original_link, requirements, replacement_facts):
+    def _create_test_links(original_link, requirements_and_facts):
         links = []
-        for req in requirements:
+        for req in requirements_and_facts:
             link_with_req = copy.copy(original_link)
             ability_with_req = copy.copy(original_link.ability)
-            ability_with_req.requirements = [req]
+            ability_with_req.requirements = [requirements_and_facts[req]['requirement']]
             link_with_req.ability = ability_with_req
+            link_with_req.facts = requirements_and_facts[req]['facts']
             links.append(link_with_req)
         return links
 

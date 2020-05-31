@@ -319,9 +319,9 @@ class TestResponsePlanner:
         response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
         operation.planner = planner
 
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by='someotherpaw')
-        fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by='someotherpaw')
+        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by=agent.paw)
+        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
+        fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by=agent.paw)
         rel1 = Relationship(source=fact1, edge='edge', target=fact2)
         rel2 = Relationship(source=fact3)
 
@@ -335,14 +335,20 @@ class TestResponsePlanner:
         test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
                                                 command='#{some.test.fact1} #{some.test.fact2} #{some.test.fact3}',
                                                 ability_id='hunt1', repeatable=True)
-        test_ability.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
-                                         relationship_match=[dict(source='some.test.fact1', edge='right_edge',
-                                                                  target='some.test.fact2')]))
-        test_ability.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                                                     relationship_match=[dict(source='some.test.fact1')]))
+        req1 = Requirement(module='plugins.stockpile.app.requirements.basic',
+                           relationship_match=[dict(source='some.test.fact1', edge='right_edge',
+                                                    target='some.test.fact2')])
+        req2 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                           relationship_match=[dict(source='some.test.fact1')])
+        test_ability.requirements.extend([req1, req2])
         test_link = Link(command=test_ability.test, paw=agent.paw, ability=test_ability)
+        req1_unique = response_planner._unique_for_requirement(req1)
+        req2_unique = response_planner._unique_for_requirement(req2)
+        relevant_requirements_and_facts = dict()
+        relevant_requirements_and_facts[req1_unique] = dict(requirement=req1, facts=[fact1, fact2])
+        relevant_requirements_and_facts[req2_unique] = dict(requirement=req2, facts=[fact1])
         links, test_op = response_planner._create_test_op_and_links(test_link, potential_parent_link,
-                                                                    test_ability.requirements)
+                                                                    relevant_requirements_and_facts)
         assert len(test_op.chain) == 1
         assert len(test_op.chain[0].facts) == 2
         assert all(f in [fact.trait for fact in test_op.chain[0].facts] for f in ['some.test.fact2', 'some.test.fact3'])
@@ -368,18 +374,19 @@ class TestResponsePlanner:
                                             command='detection0', ability_id='detection0', repeatable=True)
 
         potential_parent_link = Link(command=tability.test, paw=agent.paw, ability=tability)
-        potential_parent_link.relationships.extend([rel1, rel2])
+        potential_parent_link.relationships.extend([rel1])
         potential_parent_link.used.append(fact1)
 
         test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
                                                 command='#{some.test.fact1} #{some.test.fact2} #{some.test.fact3}',
                                                 ability_id='hunt1', repeatable=True)
-        test_ability.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
-                                                     relationship_match=[
-                                                         dict(source='some.test.fact1', edge='edge',
-                                                              target='some.test.fact2')]))
-        test_ability.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                                                     relationship_match=[dict(source='some.test.fact1')]))
+        req1 = Requirement(module='plugins.stockpile.app.requirements.basic',
+                           relationship_match=[dict(source='some.test.fact1', edge='edge',
+                                                    target='some.test.fact2')])
+        req2 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                           relationship_match=[dict(source='some.test.fact1')])
+        test_ability.requirements.extend([req1, req2])
+
         test_link = Link(command=test_ability.test, paw=agent.paw, ability=test_ability)
         test_link.used.extend([fact1, fact2, fact3])
 
