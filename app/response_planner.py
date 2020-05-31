@@ -6,6 +6,16 @@ from app.objects.secondclass.c_requirement import Requirement
 
 
 class LogicalPlanner:
+    """
+    The response planner is made to support indefinite defensive operations. Setup abilities are run once when an
+    operation first starts, or when an agent first connects to an ongoing operation. Detection abilities are run
+    repeatedly. Hunt abilities are run when certain detection abilities have produced detections. Response abilities
+    are run when there are unaddressed detections.
+    Both hunt and response abilities can be repeatable. However, they will only be repeated if there is a detection that
+    has not been hunted for or responded to, respectively.
+    Detection and hunt abilities should not be repeated if they have produced results that have not been addressed yet.
+    This last part needs to be implemented.
+    """
 
     def __init__(self, operation, planning_svc, stopping_conditions=()):
         self.operation = operation
@@ -36,6 +46,10 @@ class LogicalPlanner:
     """ PRIVATE """
 
     async def _do_reactive_bucket(self, bucket):
+        """
+        Reactive buckets are buckets that only run abilities when there is an existing detection to be responded to.
+        Detections that are responded to are kept track of in link storage sets.
+        """
         link_storage = self._get_link_storage(bucket)
         links = await self.planning_svc.get_links(planner=self, operation=self.operation, buckets=[bucket])
         links_to_apply = []
@@ -61,15 +75,25 @@ class LogicalPlanner:
         return storage[bucket]
 
     async def _get_unaddressed_parent_links(self, link, link_storage, check_paw_prov=False):
+        """
+        Unaddressed parent links are those links that produced [a] detection(s) that is/are used by the link-to-be-
+        applied. A potential parent link is one that contains a fact that is used by the link-to-be-applied in one of
+        its created relationships. These potential parent links are then checked to ensure that they actually produced
+        detection(s) that the link-to-be-applied uses.
+        """
         unaddressed_links = [unaddressed for unaddressed in self._get_parent_links(link, check_paw_prov) if
                              unaddressed not in link_storage]
         unaddressed_parents = []
         for ul in unaddressed_links:
-            if await self._do_link_relationships_satisfy_requirements(link, ul):
+            if await self._do_parent_relationships_satisfy_link_requirements(link, ul):
                 unaddressed_parents.append(ul)
         return unaddressed_parents
 
     def _get_parent_links(self, link, check_paw_prov=False):
+        """
+        Any completed link with relationships that contain at least one fact used by the link-to-be-applied is
+        considered a potential parent.
+        """
         parent_links = set()
         link_paw = link.paw if check_paw_prov else None
         for fact in link.used:
@@ -77,6 +101,9 @@ class LogicalPlanner:
         return parent_links
 
     def _links_with_fact_in_relationship(self, fact, paw=None):
+        """
+        Get all the links in the operation's chain that contain the fact in at least one relationship.
+        """
         links_with_fact = []
         for link in self.operation.chain if paw is None else [lnk for lnk in self.operation.chain if lnk.paw == paw]:
             if any(self._fact_in_relationship(fact, rel) for rel in link.relationships):
@@ -89,9 +116,12 @@ class LogicalPlanner:
                 return True
         return False
 
-    async def _do_link_relationships_satisfy_requirements(self, link, potential_parent):
-        # Need to add case where if no relevant_requirement for used fact, then return True
-        # Consider changing relevant_requirements to dict of requirement_unique -> (req, [fact(s)])
+    async def _do_parent_relationships_satisfy_link_requirements(self, link, potential_parent):
+        """
+        A potential parent link that produces a relationship that doesn't satisfy any of the link-to-be-applied's
+        requirements isn't really a parent. If the link-to-be-applied doesn't have any requirements associated with the
+        fact produced by the potential parent, then that works too - the potential parent is an actual parent.
+        """
         used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
                       self._fact_in_relationship(fact, rel)]
         relevant_requirements_and_facts = dict()
@@ -114,6 +144,9 @@ class LogicalPlanner:
 
     @staticmethod
     def _get_relevant_requirements_for_fact_in_link(link, fact):
+        """
+        Relevant requirements for a fact are those that involve the fact somehow.
+        """
         relevant_requirements = []
         for req in link.ability.requirements:
             for req_match in req.relationship_match:
@@ -123,6 +156,9 @@ class LogicalPlanner:
 
     @staticmethod
     def _unique_for_requirement(requirement):
+        """
+        A unique string used to identify a requirement.
+        """
         rel_match = requirement.relationship_match[0]
         unique = requirement.module + rel_match['source']
         for field in ['edge', 'target']:
@@ -133,9 +169,9 @@ class LogicalPlanner:
     def _create_test_op_and_links(self, link, potential_parent, relevant_requirements_and_facts):
         """
         This function creates a test operation and test links. The test operation contains a copy of the potential
-        parent. This copy link is given all the facts that it produced, determined by
+        parent in its chain. This copy link is given all the facts that it produced, determined by
         set(facts_in_relationships) - set(used_facts).
-        The test links are copies of the link to be applied. Each of these is given one relevant requirement to
+        The test links are copies of the link-to-be-applied. Each of these is given one relevant requirement to
         be tested for.
         Relevant requirements are provided by the calling function, but then filtered to ensure that each requirement
         uses at least one fact produced by the parent.
@@ -151,11 +187,17 @@ class LogicalPlanner:
         return links_with_relevant_reqs_and_facts, verifier_operation
 
     def _get_produced_facts(self, link):
+        """
+        Facts that are the results of parsing output, and not just used facts that are part of a relationship.
+        """
         return [fact for fact in self._facts_from_link_relationships(link) if
                           not self._is_fact_used(fact, link)]
 
     @staticmethod
     def _facts_from_link_relationships(link):
+        """
+        Extracting facts from relationships.
+        """
         relationship_facts = []
         for rel in link.relationships:
             relationship_facts.extend([rel.source, rel.target] if rel.target else [rel.source])
@@ -169,7 +211,13 @@ class LogicalPlanner:
         return False
 
     def _filter_reqs_by_used_facts(self, requirements_and_facts, filter_facts):
-        # also, if facts match, replace req_fact with the filter_fact
+        """
+        Each requirement should contain at least one fact within filter_facts. In this context, a requirement that
+        doesn't use any of the facts produced by the potential parent link is considered to be unsatisfied, and so is
+        removed.
+        Facts used by the link-to-be-applied are also replaced by the facts produced by the potential parent. This is to
+        effectively enforce paw_provenance requirements, and any other similar requirements.
+        """
         filtered_reqs_and_facts = dict()
         for req in requirements_and_facts:
             filtered_facts = self._replace_matched_facts_with_filter_facts(requirements_and_facts[req], filter_facts)
@@ -194,6 +242,11 @@ class LogicalPlanner:
 
     @staticmethod
     def _create_test_links(original_link, requirements_and_facts):
+        """
+        Test links are copies of the original link, but with some modifications. They contain only one requirement, and
+        only those used facts that are relevant to the requirement. These links are then tested to see if they satisfy
+        their given requirements.
+        """
         links = []
         for req in requirements_and_facts:
             link_with_req = copy.copy(original_link)
@@ -206,6 +259,10 @@ class LogicalPlanner:
 
     @staticmethod
     def _remove_duplicate_links(links):
+        """
+        As many abilities are repeatable, it's possible that the same link gets run twice during the execution of a
+        bucket. This is to prevent that from happening.
+        """
         unique_links = []
         for link in links:
             if not any(link.command == ul.command and link.paw == ul.paw for ul in unique_links):
@@ -213,6 +270,9 @@ class LogicalPlanner:
         return unique_links
 
     async def _run_links(self, links):
+        """
+        Apply and execute the bucket's links.
+        """
         link_ids = []
         for link in links:
             link_ids.append(await self.operation.apply(link))
