@@ -355,7 +355,7 @@ class TestResponsePlanner:
         paws = set([fact.collected_by for fact in test_op.chain[0].facts])
         assert len(paws) == 1
         assert agent.paw in paws
-        assert len(links) == 2
+        assert len(links) == 1
         assert all(len(link.ability.requirements) == 1 for link in links)
 
     def test_do_link_relationships_satisfy_requirements(self, loop, data_svc, setup_planner_test, planning_svc):
@@ -368,7 +368,6 @@ class TestResponsePlanner:
         fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
         fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by=agent.paw)
         rel1 = Relationship(source=fact1, edge='edge', target=fact2)
-        rel2 = Relationship(source=fact3)
 
         tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
                                             command='detection0', ability_id='detection0', repeatable=True)
@@ -385,7 +384,9 @@ class TestResponsePlanner:
                                                     target='some.test.fact2')])
         req2 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
                            relationship_match=[dict(source='some.test.fact1')])
-        test_ability.requirements.extend([req1, req2])
+        req3 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                           relationship_match=[dict(source='some.test.fact2')])
+        test_ability.requirements.extend([req1, req2, req3])
 
         test_link = Link(command=test_ability.test, paw=agent.paw, ability=test_ability)
         test_link.used.extend([fact1, fact2, fact3])

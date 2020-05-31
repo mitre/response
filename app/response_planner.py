@@ -137,6 +137,8 @@ class LogicalPlanner:
         set(facts_in_relationships) - set(used_facts).
         The test links are copies of the link to be applied. Each of these is given one relevant requirement to
         be tested for.
+        Relevant requirements are provided by the calling function, but then filtered to ensure that each requirement
+        uses at least one fact produced by the parent.
         """
         verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
         potential_parent_copy = copy.copy(potential_parent)
@@ -146,7 +148,8 @@ class LogicalPlanner:
                                       fact in produced_facts]
         potential_parent_copy.facts = replacement_produced_facts
         verifier_operation.chain.append(potential_parent_copy)
-        links_with_relevant_reqs_and_facts = self._create_test_links(link, relevant_requirements_and_facts)
+        filtered_rel_reqs_and_facts = self._filter_reqs_by_used_facts(relevant_requirements_and_facts, produced_facts)
+        links_with_relevant_reqs_and_facts = self._create_test_links(link, filtered_rel_reqs_and_facts)
         return links_with_relevant_reqs_and_facts, verifier_operation
 
     @staticmethod
@@ -162,6 +165,18 @@ class LogicalPlanner:
             if fact.trait == used.trait and fact.value == used.value:
                 return True
         return False
+
+    def _filter_reqs_by_used_facts(self, requirements_and_facts, filter_facts):
+        filtered_reqs_and_facts = dict()
+        for req in requirements_and_facts:
+            if any(self._do_facts_match(req_fact, filter_f) for
+                   req_fact in requirements_and_facts[req]['facts'] for filter_f in filter_facts):
+                filtered_reqs_and_facts[req] = requirements_and_facts[req]
+        return filtered_reqs_and_facts
+
+    @staticmethod
+    def _do_facts_match(fact1, fact2):
+        return fact1.trait == fact2.trait and fact1.value == fact2.value
 
     @staticmethod
     def _create_test_links(original_link, requirements_and_facts):
