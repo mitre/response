@@ -1,5 +1,6 @@
 import copy
 
+from app.objects.secondclass.c_fact import Fact
 from app.objects.c_operation import Operation
 from app.objects.secondclass.c_requirement import Requirement
 
@@ -90,15 +91,15 @@ class LogicalPlanner:
         return False
 
     async def _do_link_relationships_satisfy_requirements(self, link, potential_parent):
-        # This method determines if the potential parent link produces at least one fact that isn't part of a
-        # requirement in the target link or has fact(s) that do satisfy the relevant requirement
+        # Need to add case where if no relevant_requirement for used fact, then return True
+        # Consider changing relevant_requirements to dict of requirement -> fact(s)
         used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
                       self._fact_in_relationship(fact, rel)]
         relevant_requirements = set()
         for fact in used_facts:
             relevant_requirements.update(self._get_relevant_requirements_for_fact_in_link(link, fact))
-        links_with_relevant_reqs, verifier_operation = self._create_test_op_and_link(link, potential_parent,
-                                                                                     list(relevant_requirements))
+        links_with_relevant_reqs, verifier_operation = self._create_test_op_and_links(link, potential_parent,
+                                                                                      list(relevant_requirements))
         return len(await self.planning_svc.remove_links_missing_requirements(links_with_relevant_reqs,
                                                                              verifier_operation)) if \
             relevant_requirements else 0
@@ -112,17 +113,50 @@ class LogicalPlanner:
                     relevant_requirements.append(Requirement(module=req.module, relationship_match=[req_match]))
         return relevant_requirements
 
-    def _create_test_op_and_link(self, link, potential_parent, relevant_requirements):
+    def _create_test_op_and_links(self, link, potential_parent, relevant_requirements):
+        """
+        This function creates a test operation and test links. The test operation contains a copy of the potential
+        parent. This copy link is given all the facts that it produced, determined by
+        set(facts_in_relationships) - set(used_facts).
+        The test links are copies of the link to be applied. Each of these is given one relevant requirement to
+        be tested for.
+        """
         verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
-        verifier_operation.chain.append(potential_parent)
-        links_with_relevant_reqs = []
-        for rel_req in relevant_requirements:
-            link_with_rel_req = copy.copy(link)
-            ability_with_rel_req = copy.copy(link.ability)
-            ability_with_rel_req.requirements = [rel_req]
-            link_with_rel_req.ability = ability_with_rel_req
-            links_with_relevant_reqs.append(link_with_rel_req)
-        return links_with_relevant_reqs, verifier_operation
+        potential_parent_copy = copy.copy(potential_parent)
+        produced_facts = [fact for fact in self._facts_from_link_relationships(potential_parent) if
+                          not self._is_fact_used(fact, potential_parent)]
+        replacement_produced_facts = [Fact(trait=fact.trait, value=fact.value, collected_by=potential_parent.paw) for
+                                      fact in produced_facts]
+        potential_parent_copy.facts = replacement_produced_facts
+        verifier_operation.chain.append(potential_parent_copy)
+        links_with_relevant_reqs_and_facts = self._create_test_links(link, relevant_requirements,
+                                                                     replacement_produced_facts)
+        return links_with_relevant_reqs_and_facts, verifier_operation
+
+    @staticmethod
+    def _facts_from_link_relationships(link):
+        relationship_facts = []
+        for rel in link.relationships:
+            relationship_facts.extend([rel.source, rel.target] if rel.target else [rel.source])
+        return relationship_facts
+
+    @staticmethod
+    def _is_fact_used(fact, link):
+        for used in link.used:
+            if fact.trait == used.trait and fact.value == used.value:
+                return True
+        return False
+
+    @staticmethod
+    def _create_test_links(original_link, requirements, replacement_facts):
+        links = []
+        for req in requirements:
+            link_with_req = copy.copy(original_link)
+            ability_with_req = copy.copy(original_link.ability)
+            ability_with_req.requirements = [req]
+            link_with_req.ability = ability_with_req
+            links.append(link_with_req)
+        return links
 
     async def _run_links(self, links):
         link_ids = []
@@ -133,6 +167,7 @@ class LogicalPlanner:
 
 
 ####### If response, want to make sure "parent" links are from the same agent - check paw provenance
+####### If fact is in link's relationship, but not in link's facts, check if the fact is in link's used list. If not, add it to link's facts to satisfy paw prov requirements.
 
 
     # async def execute(self, **kwargs):
