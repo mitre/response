@@ -22,14 +22,21 @@ class LogicalPlanner:
         self.planning_svc = planning_svc
         self.stopping_conditions = stopping_conditions
         self.stopping_condition_met = False
-        self.state_machine = ['detection', 'hunt', 'response']
-        self.next_bucket = 'detection'
+        self.state_machine = ['setup', 'detection', 'hunt', 'response']
+        self.next_bucket = 'setup'
+        self.has_been_setup = []
         self.links_hunted = set()
         self.links_responded = set()
         self.severity = dict()
 
     async def execute(self):
         await self.planning_svc.execute_planner(self)
+
+    async def setup(self):
+        for agent in [ag for ag in self.operation.agents if ag not in self.has_been_setup]:
+            self.has_been_setup.append(agent)
+            await self.planning_svc.exhaust_bucket(self, ['setup'], self.operation, agent, batch=True)
+        self.next_bucket = await self.planning_svc.default_next_bucket('setup', self.state_machine)
 
     async def detection(self):
         await self.planning_svc.exhaust_bucket(self, ['detection'], self.operation, batch=True)
