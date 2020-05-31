@@ -1,3 +1,4 @@
+import copy
 import pytest
 import random
 import string
@@ -38,8 +39,13 @@ def create_and_store_ability(test_loop, data_service, op, tactic, command, abili
     return ability
 
 
-@pytest.fixture
-def setup_planner_test(loop, data_svc, init_base_world):
+async def setup_mock_execute_links(planner, operation, link_ids, condition_stop):
+    return
+
+
+@pytest.fixture(scope="function")
+def setup_planner_test(loop, mocker, data_svc, init_base_world, planning_svc):
+    mocker.patch.object(planning_svc, 'execute_links', new=setup_mock_execute_links)
     tagent = Agent(sleep_min=1, sleep_max=2, watchdog=0, executors=['sh'], platform='linux')
     tsource = Source(id='123', name='test', facts=[], adjustments=[])
     toperation = Operation(name='test1', agents=[tagent], adversary=Adversary(name='test', description='test',
@@ -53,343 +59,257 @@ def setup_planner_test(loop, data_svc, init_base_world):
                    module='plugins.stockpile.app.obfuscators.plain_text')
     ))
 
-    yield tagent, toperation
+    planner_obj = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
+    toperation.planner = planner_obj
+    response_planner = ResponsePlanner(operation=toperation, planning_svc=planning_svc)
+    response_planner.operation = toperation
+
+    det_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=toperation, tactic='detection',
+                                           command='detection0', ability_id='detection0', repeatable=True)
+    det_link = Link(command=det_ability.test, paw=tagent.paw, ability=det_ability)
+    det_link.facts.append(Fact(trait='some.test.fact1', value='fact1', collected_by=tagent.paw))
+    det_link.relationships.append(Relationship(source=det_link.facts[0]))
+    toperation.chain.append(det_link)
+
+    yield tagent, toperation, planner_obj, response_planner, det_link
+    data_svc.ram = copy.deepcopy(data_svc.schema)
 
 
 class TestResponsePlanner:
 
-    @pytest.mark.skip
-    async def setup_mock_execute_links(self, planner, operation, link_ids, condition_stop):
-        return
-
-    def test_do_detection(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
-        mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
-        agent, operation = setup_planner_test
+    def test_do_detection(self, loop, data_svc, setup_planner_test, planning_svc):
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
         abilities = []
-        for i in range(3):
+        for i in [1, 2]:
             abilities.append(create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation,
                                                       tactic='detection', command='detection'+str(i),
                                                       ability_id='detection'+str(i), repeatable=True))
         planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
 
         loop.run_until_complete(planner.detection())
-        assert len(operation.chain) == 3
+        assert len(operation.chain) == 4
 
         loop.run_until_complete(planner.detection())
-        assert len(operation.chain) == 6
+        assert len(operation.chain) == 7
 
-    def test_hunt_no_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_1(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
         """
-        This one needs to test the ability to look for unaddressed parent links, and mark these parents as addressed.
+        Baseline test - There is a completed link in the operation chain, but it is not a parent. No new links should
+        be applied.
         """
-        mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
-        agent, operation = setup_planner_test
-        planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
 
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
-        fact1 = Fact(trait='some.test.fact1', value='fact1')
-        fact2 = Fact(trait='some.test.fact2', value='fact2')
-        rel1 = Relationship(source=fact1, edge='edge', target=fact2)
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                 command='#{some.test.fact2}', ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 1
+        assert operation.chain[0] == det_link
+        assert not len(response_planner._get_link_storage(tactic))
 
-        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        link1.facts.append(fact1)
-        link1.facts.append(fact2)
-        link1.relationships.append(rel1)
-        operation.chain.append(link1)
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_2(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There is a completed link in the operation chain that produced a fact that the test_ability uses. One link
+        should be applied. The completed link should be added to the set of processed links.
+        Rerunning the function should not add any further links.
+        Adding a new completed link to the operation that also produced the same fact should cause a new link to be
+        applied again. The completed link should be added to the set of processed links.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
 
-        hunt1 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
-                                         command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
-        hunt2 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
-                                         command='#{some.test.fact1} #{some.test.fact2}', ability_id='hunt2',
-                                         repeatable=True)
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                 command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 2
+        assert operation.chain[1].ability.ability_id == tactic + '1'
+        assert len(response_planner._get_link_storage(tactic)) == 1
 
-        loop.run_until_complete(planner.hunt())
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 2
+        assert len(response_planner._get_link_storage(tactic)) == 1
+
+        det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
+        det_link2.relationships.append(det_link.relationships[0])
+        operation.chain.append(det_link2)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 4
+        assert operation.chain[3].ability.ability_id == tactic + '1'
+        assert len(response_planner._get_link_storage(tactic)) == 2
+
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_3(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There is a completed link in the operation chain that produced one fact. This link is placed into the set of
+        processed links.
+        There is a second completed link in the operation chain that USED (instead of produced) the previously produced
+        fact.
+        The test ability uses this fact. No link should be applied.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        response_planner._get_link_storage(tactic).add(det_link)
+
+        det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
+        det_link2.used.append(det_link.facts[0])
+        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
+        det_link2.facts.append(fact2)
+        rel2 = Relationship(source=det_link.facts[0], edge='edge', target=fact2)
+        det_link2.relationships.append(rel2)
+        operation.chain.append(det_link2)
+
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                 command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 2
+        assert operation.chain[0] == det_link
+        assert operation.chain[1] == det_link2
+        assert len(response_planner._get_link_storage(tactic)) == 1
+
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_4(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There are two completed links in the operation chain, both of which produced the same fact.
+        One link should be applied.
+        Both completed links should be added to the set of processed links.
+        Repeating the function should cause no further changes.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+
+        det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
+        det_link2.relationships.append(det_link.relationships[0])
+        operation.chain.append(det_link2)
+
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                 command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
         assert len(operation.chain) == 3
-        assert hunt1.ability_id in [link.ability.ability_id for link in operation.chain]
-        assert hunt2.ability_id in [link.ability.ability_id for link in operation.chain]
-        assert operation.chain[0] in planner.links_hunted
+        assert operation.chain[2].ability.ability_id == tactic + '1'
+        assert len(response_planner._get_link_storage(tactic)) == 2
 
-        link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        rel2 = Relationship(source=fact2)
-        link2.relationships.append(rel2)
-        operation.chain.append(link2)
-
-        loop.run_until_complete(planner.hunt())
-        assert len(operation.chain) == 5
-        assert len([link.ability.ability_id for link in operation.chain if
-                    link.ability.ability_id == hunt2.ability_id]) == 2
-        assert operation.chain[3] in planner.links_hunted
-
-        link1_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
-        link1_clone.relationships.append(rel1)
-        operation.chain.append(link1_clone)
-        link2_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
-        link2_clone.relationships.append(rel2)
-        operation.chain.append(link2_clone)
-
-        loop.run_until_complete(planner.hunt())
-        assert len(operation.chain) == 9
-        assert len([link.ability.ability_id for link in operation.chain if
-                    link.ability.ability_id == hunt1.ability_id]) == 2
-        assert len([link.ability.ability_id for link in operation.chain if
-                    link.ability.ability_id == hunt2.ability_id]) == 3
-        assert operation.chain[5] in planner.links_hunted
-        assert operation.chain[6] in planner.links_hunted
-
-    def test_hunt_with_paw_provenance(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
-
-        assert True
-
-    def test_do_link_relationships_satisfy_requirements_paw_prov(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
-        agent, operation = setup_planner_test
-        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
-        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        operation.planner = planner
-
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
-        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
-        rel1 = Relationship(source=fact1)
-        link1.facts.append(fact1)
-        link1.relationships.append(rel1)
-        # operation.chain.append(link1)
-
-        ability_paw_prov = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
-                                                    command='#{some.test.fact1}', ability_id='test1', repeatable=True)
-        ability_paw_prov.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                                                         relationship_match=[dict(source='some.test.fact1')]))
-
-        link_paw_prov = Link(command='#{some.test.fact1}', paw=agent.paw, ability=ability_paw_prov)
-        link_paw_prov.used.append(fact1)
-        assert not loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_paw_prov, link1))
-
-        fact1.collected_by = agent.paw
-        assert loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_paw_prov, link1))
-
-    def test_do_link_relationships_satisfy_requirements_basic_req(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
-        agent, operation = setup_planner_test
-        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
-        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        operation.planner = planner
-
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
-        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by=agent.paw)
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        rel1 = Relationship(source=fact1, edge='wrong_edge', target=fact2)
-        link1.facts.extend([fact1, fact2])
-        link1.relationships.append(rel1)
-
-        ability_basic_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
-                                                     command='#{some.test.fact1} #{some.test.fact2}',
-                                                     ability_id='test1', repeatable=True)
-        ability_basic_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
-                                                          relationship_match=[dict(source='some.test.fact1',
-                                                                                   edge='right_edge',
-                                                                                   target='some.test.fact2')]))
-        link_basiq_req = Link(command='#{some.test.fact1} #{some.test.fact2}', paw=agent.paw, ability=ability_basic_req)
-        link_basiq_req.used.extend([fact1, fact2])
-        assert not loop.run_until_complete(
-            response_planner._do_link_relationships_satisfy_requirements(link_basiq_req, link1))
-
-        rel1.edge = 'right_edge'
-        assert loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(link_basiq_req, link1))
-
-    def test_do_link_relationships_satisfy_requirements_multiple(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
-        agent, operation = setup_planner_test
-        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
-        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        operation.planner = planner
-
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
-        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        rel1 = Relationship(source=fact1, edge='wrong_edge', target=fact2)
-        link1.facts.extend([fact1, fact2])
-        link1.relationships.append(rel1)
-
-        ability_mult_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
-                                                    command='#{some.test.fact1} #{some.test.fact2}', ability_id='test1',
-                                                    repeatable=True)
-        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
-                                                         relationship_match=[dict(source='some.test.fact1',
-                                                                                  edge='right_edge',
-                                                                                  target='some.test.fact2')]))
-        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                                                         relationship_match=[dict(source='some.test.fact1')]))
-
-        link_mult_req = Link(command='#{some.test.fact1} #{some.test.fact2}', paw=agent.paw, ability=ability_mult_req)
-        link_mult_req.used.extend([fact1, fact2])
-        assert not loop.run_until_complete(
-            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
-
-        rel1.edge = 'right_edge'
-        assert loop.run_until_complete(
-            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
-
-        rel1.edge = 'wrong_edge'
-        fact1.collected_by = agent.paw
-        assert loop.run_until_complete(
-            response_planner._do_link_relationships_satisfy_requirements(link_mult_req, link1))
-
-    def test_hunt_with_requirements(self, loop, data_svc, mocker, setup_planner_test, planning_svc):
-        """
-        This one needs to test the ability to look for unaddressed parent links, and mark these parents as addressed.
-        """
-        mocker.patch.object(planning_svc, 'execute_links', new=self.setup_mock_execute_links)
-        agent, operation = setup_planner_test
-        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
-        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        operation.planner = planner
-
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
-
-        link1 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by='someotherpaw')
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        rel1 = Relationship(source=fact1, edge='wrong_edge', target=fact2)
-        link1.facts.extend([fact1, fact2])
-        link1.relationships.append(rel1)
-        operation.chain.append(link1)
-
-        ability_mult_req = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='test',
-                                                    command='#{some.test.fact1} #{some.test.fact2}', ability_id='test1',
-                                                    repeatable=True)
-        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.basic',
-                                                         relationship_match=[dict(source='some.test.fact1',
-                                                                                  edge='right_edge',
-                                                                                  target='some.test.fact2')]))
-        ability_mult_req.requirements.append(Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                                                         relationship_match=[dict(source='some.test.fact1')]))
-
-        # want to add one link with fact1, then test. should fail
-        # add another link with fact1
-
-        hunt1 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
-                                         command='#{some.test.fact1}', ability_id='hunt1', repeatable=True)
-        hunt2 = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
-                                         command='#{some.test.fact1} #{some.test.fact2}', ability_id='hunt2',
-                                         repeatable=True)
-
-        loop.run_until_complete(response_planner.hunt())
+        loop.run_until_complete(getattr(response_planner, tactic)())
         assert len(operation.chain) == 3
-        assert hunt1.ability_id in [link.ability.ability_id for link in operation.chain]
-        assert hunt2.ability_id in [link.ability.ability_id for link in operation.chain]
-        assert operation.chain[0] in response_planner.links_hunted
+        assert len(response_planner._get_link_storage(tactic)) == 2
 
-        link2 = Link(command=tability.test, paw=agent.paw, ability=tability)
-        rel2 = Relationship(source=fact2)
-        link2.relationships.append(rel2)
-        operation.chain.append(link2)
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_5(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There are two completed links in the operation chain. Each link produces a fact of the same trait but with a
+        different value.
+        Two links should be applied.
+        Both completed links should be added to the set of processed links.
+        Repeating the function should cause no further changes.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
 
-        loop.run_until_complete(response_planner.hunt())
-        assert len(operation.chain) == 5
-        assert len([link.ability.ability_id for link in operation.chain if
-                    link.ability.ability_id == hunt2.ability_id]) == 2
-        assert operation.chain[3] in response_planner.links_hunted
+        det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
+        det_link2.facts.append(Fact(trait='some.test.fact1', value='fact2', collected_by=agent.paw))
+        det_link2.relationships.append(Relationship(source=det_link2.facts[0]))
+        operation.chain.append(det_link2)
 
-        link1_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
-        link1_clone.relationships.append(rel1)
-        operation.chain.append(link1_clone)
-        link2_clone = Link(command=tability.test, paw=agent.paw, ability=tability)
-        link2_clone.relationships.append(rel2)
-        operation.chain.append(link2_clone)
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                 command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 4
+        assert operation.chain[2].ability.ability_id == tactic + '1'
+        assert operation.chain[3].ability.ability_id == tactic + '1'
+        assert len(response_planner._get_link_storage(tactic)) == 2
 
-        loop.run_until_complete(response_planner.hunt())
-        assert len(operation.chain) == 9
-        assert len([link.ability.ability_id for link in operation.chain if
-                    link.ability.ability_id == hunt1.ability_id]) == 2
-        assert len([link.ability.ability_id for link in operation.chain if
-                    link.ability.ability_id == hunt2.ability_id]) == 3
-        assert operation.chain[5] in response_planner.links_hunted
-        assert operation.chain[6] in response_planner.links_hunted
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 4
+        assert len(response_planner._get_link_storage(tactic)) == 2
 
-    def test_create_test_op_and_links(self, loop, data_svc, setup_planner_test, planning_svc):
-        # With a link with a basic requirement and a paw prov requirement, and a potential parent link with the relevant
-        # facts in it its relationships, I want to see that these facts are given to the potential parent copy and that
-        # the correct number of test links are created
-        agent, operation = setup_planner_test
-        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
-        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        operation.planner = planner
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_6(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There is a completed link in the operation chain that produced a fact that the test_ability uses.
+        This link is added to the set of processed links.
+        A second completed link in the operation chain produces the same fact, but with a different paw.
+        The test ability has a paw provenance requirement for its used fact.
+        No links should be applied.
+        The second completed link's produced fact's paw is changed to meet the paw provenance requirement.
+        A link should be applied.
+        The second completed link should be added to the set of processed links.
+        Rerunning the function should not add any further links.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        response_planner._get_link_storage(tactic).add(det_link)
 
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by=agent.paw)
+        det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
+        det_link2.facts.append(Fact(trait='some.test.fact1', value='fact1', collected_by=agent.paw))
+        det_link2.relationships.append(Relationship(source=det_link2.facts[0]))
+        operation.chain.append(det_link2)
+
+        det_link2.facts[0].collected_by = 'someotherpaw'
+
+        requirements = [Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
+                                    relationship_match=[dict(source='some.test.fact1')])]
+        test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                                command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True,
+                                                requirements=requirements)
+
+        ao = operation.adversary.atomic_ordering
+        abilities = loop.run_until_complete(data_svc.locate('abilities', match=dict(ability_id=tuple(ao))))
+
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 2
+        assert operation.chain[0] == det_link
+        assert operation.chain[1] == det_link2
+        assert len(response_planner._get_link_storage(tactic)) == 1
+
+        det_link2.facts[0].collected_by = agent.paw
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 3
+        assert operation.chain[2].ability.ability_id == tactic + '1'
+        assert len(response_planner._get_link_storage(tactic)) == 2
+
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 3
+        assert len(response_planner._get_link_storage(tactic)) == 2
+
+    @pytest.mark.parametrize('tactic', ['hunt', 'response'])
+    def test_reactive_bucket_7(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There is a completed link in the operation chain that produced one fact. This link is placed into the set of
+        processed links.
+        There is a second completed link which USES the previously produced fact, produces a new fact, and a
+        relationship. This relationship satisfies the multi-fact requirement of the test ability.
+        A link should be applied.
+        The second completed link should be added to the set of processed links.
+        Calling the function again should not result in any changes.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        response_planner._get_link_storage(tactic).add(det_link)
+
+        det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
+        det_link2.used.append(det_link.facts[0])
         fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by=agent.paw)
-        rel1 = Relationship(source=fact1, edge='edge', target=fact2)
-        rel2 = Relationship(source=fact3)
+        det_link2.facts.append(fact2)
+        rel2 = Relationship(source=det_link.facts[0], edge='edge', target=fact2)
+        det_link2.relationships.append(rel2)
+        operation.chain.append(det_link2)
 
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
+        test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                                command='#{some.test.fact1} #{some.test.fact2}',
+                                                ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 3
+        assert operation.chain[2].ability.ability_id == test_ability.ability_id
+        assert len(response_planner._get_link_storage(tactic)) == 2
 
-        potential_parent_link = Link(command=tability.test, paw=agent.paw, ability=tability)
-        potential_parent_link.relationships.extend([rel1, rel2])
-        potential_parent_link.used.append(fact1)
+    def test_response_paw_prov(self, loop, data_svc, planning_svc, setup_planner_test):
+        """
+        There is a completed link run by a (non-existent) agent that produces a fact.
+        The test ability uses this fact on a different (existing) agent, without a paw provenance requirement.
+        No link should be applied, because response should assure parent links were run on the same agent.
+        """
+        tactic = 'response'
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        det_link.facts[0].collected_by = 'someotherpaw'
 
-        test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
-                                                command='#{some.test.fact1} #{some.test.fact2} #{some.test.fact3}',
-                                                ability_id='hunt1', repeatable=True)
-        req1 = Requirement(module='plugins.stockpile.app.requirements.basic',
-                           relationship_match=[dict(source='some.test.fact1', edge='right_edge',
-                                                    target='some.test.fact2')])
-        req2 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                           relationship_match=[dict(source='some.test.fact1')])
-        test_ability.requirements.extend([req1, req2])
-        test_link = Link(command=test_ability.test, paw=agent.paw, ability=test_ability)
-        req1_unique = response_planner._unique_for_requirement(req1)
-        req2_unique = response_planner._unique_for_requirement(req2)
-        relevant_requirements_and_facts = dict()
-        relevant_requirements_and_facts[req1_unique] = dict(requirement=req1, facts=[fact1, fact2])
-        relevant_requirements_and_facts[req2_unique] = dict(requirement=req2, facts=[fact1])
-        links, test_op = response_planner._create_test_op_and_links(test_link, potential_parent_link,
-                                                                    relevant_requirements_and_facts)
-        assert len(test_op.chain) == 1
-        assert len(test_op.chain[0].facts) == 2
-        assert all(f in [fact.trait for fact in test_op.chain[0].facts] for f in ['some.test.fact2', 'some.test.fact3'])
-        paws = set([fact.collected_by for fact in test_op.chain[0].facts])
-        assert len(paws) == 1
-        assert agent.paw in paws
-        assert len(links) == 1
-        assert all(len(link.ability.requirements) == 1 for link in links)
-
-    def test_do_link_relationships_satisfy_requirements(self, loop, data_svc, setup_planner_test, planning_svc):
-        agent, operation = setup_planner_test
-        planner = Planner('test', 'response', 'plugins.response.app.response_planner', dict())
-        response_planner = ResponsePlanner(operation=operation, planning_svc=planning_svc)
-        operation.planner = planner
-
-        fact1 = Fact(trait='some.test.fact1', value='fact1', collected_by=agent.paw)
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        fact3 = Fact(trait='some.test.fact3', value='fact3', collected_by=agent.paw)
-        rel1 = Relationship(source=fact1, edge='edge', target=fact2)
-
-        tability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='detection',
-                                            command='detection0', ability_id='detection0', repeatable=True)
-
-        potential_parent_link = Link(command=tability.test, paw=agent.paw, ability=tability)
-        potential_parent_link.relationships.extend([rel1])
-        potential_parent_link.used.append(fact1)
-
-        test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='hunt',
-                                                command='#{some.test.fact1} #{some.test.fact2} #{some.test.fact3}',
-                                                ability_id='hunt1', repeatable=True)
-        req1 = Requirement(module='plugins.stockpile.app.requirements.basic',
-                           relationship_match=[dict(source='some.test.fact1', edge='edge',
-                                                    target='some.test.fact2')])
-        req2 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                           relationship_match=[dict(source='some.test.fact1')])
-        req3 = Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
-                           relationship_match=[dict(source='some.test.fact2')])
-        test_ability.requirements.extend([req1, req2, req3])
-
-        test_link = Link(command=test_ability.test, paw=agent.paw, ability=test_ability)
-        test_link.used.extend([fact1, fact2, fact3])
-
-        assert loop.run_until_complete(response_planner._do_link_relationships_satisfy_requirements(test_link, potential_parent_link)) == 2
-
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+                                 command='#{some.test.fact1} #{some.test.fact2}',
+                                 ability_id=tactic + '1', repeatable=True)
+        loop.run_until_complete(getattr(response_planner, tactic)())
+        assert len(operation.chain) == 1
+        assert operation.chain[0] == det_link
+        assert not len(response_planner._get_link_storage(tactic))

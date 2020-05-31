@@ -38,19 +38,19 @@ class LogicalPlanner:
     async def _do_reactive_bucket(self, bucket):
         link_storage = self._get_link_storage(bucket)
         links = await self.planning_svc.get_links(planner=self, operation=self.operation, buckets=[bucket])
-        print(links)
         links_to_apply = []
         links_being_addressed = set()
         for link in links:
             if link.used:
                 check_paw_prov = True if bucket in ['response'] else False
-                unaddressed_parents = self._get_unaddressed_parent_links(link, link_storage, check_paw_prov)
+                unaddressed_parents = await self._get_unaddressed_parent_links(link, link_storage, check_paw_prov)
                 if len(unaddressed_parents):
                     links_to_apply.append(link)
                     links_being_addressed.update(unaddressed_parents)
             else:
                 links_to_apply.append(link)
         link_storage.update(list(links_being_addressed))
+        links_to_apply = self._remove_duplicate_links(links_to_apply)
         await self._run_links(links_to_apply)
 
     def _get_link_storage(self, bucket):
@@ -60,12 +60,12 @@ class LogicalPlanner:
         )
         return storage[bucket]
 
-    def _get_unaddressed_parent_links(self, link, link_storage, check_paw_prov=False):
+    async def _get_unaddressed_parent_links(self, link, link_storage, check_paw_prov=False):
         unaddressed_links = [unaddressed for unaddressed in self._get_parent_links(link, check_paw_prov) if
                              unaddressed not in link_storage]
         unaddressed_parents = []
         for ul in unaddressed_links:
-            if self._do_link_relationships_satisfy_requirements(link, ul):
+            if await self._do_link_relationships_satisfy_requirements(link, ul):
                 unaddressed_parents.append(ul)
         return unaddressed_parents
 
@@ -83,10 +83,9 @@ class LogicalPlanner:
                 links_with_fact.append(link)
         return links_with_fact
 
-    @staticmethod
-    def _fact_in_relationship(fact, relationship):
+    def _fact_in_relationship(self, fact, relationship):
         for f in [relationship.source, relationship.target]:
-            if f and f.trait == fact.trait and f.value == fact.value:
+            if f and self._do_facts_match(f, fact):
                 return True
         return False
 
@@ -98,14 +97,15 @@ class LogicalPlanner:
         relevant_requirements_and_facts = dict()
         for fact in used_facts:
             rel_reqs_for_fact = self._get_relevant_requirements_for_fact_in_link(link, fact)
-            if not rel_reqs_for_fact:
+            if not rel_reqs_for_fact and fact in self._get_produced_facts(potential_parent):
                 return 1
-            for rel_req in rel_reqs_for_fact:
-                req_unique = self._unique_for_requirement(rel_req)
-                if req_unique in relevant_requirements_and_facts:
-                    relevant_requirements_and_facts[req_unique]['facts'].append(fact)
-                else:
-                    relevant_requirements_and_facts[req_unique] = dict(requirement=rel_req, facts=[fact])
+            else:
+                for rel_req in rel_reqs_for_fact:
+                    req_unique = self._unique_for_requirement(rel_req)
+                    if req_unique in relevant_requirements_and_facts:
+                        relevant_requirements_and_facts[req_unique]['facts'].append(fact)
+                    else:
+                        relevant_requirements_and_facts[req_unique] = dict(requirement=rel_req, facts=[fact])
         links_with_relevant_reqs, verifier_operation = self._create_test_op_and_links(link, potential_parent,
                                                                                       relevant_requirements_and_facts)
         return len(await self.planning_svc.remove_links_missing_requirements(links_with_relevant_reqs,
@@ -142,15 +142,17 @@ class LogicalPlanner:
         """
         verifier_operation = Operation(name='verifier', agents=[], adversary=None, planner=self.operation.planner)
         potential_parent_copy = copy.copy(potential_parent)
-        produced_facts = [fact for fact in self._facts_from_link_relationships(potential_parent) if
-                          not self._is_fact_used(fact, potential_parent)]
-        replacement_produced_facts = [Fact(trait=fact.trait, value=fact.value, collected_by=potential_parent.paw) for
-                                      fact in produced_facts]
-        potential_parent_copy.facts = replacement_produced_facts
+        produced_facts = self._get_produced_facts(potential_parent)
+        potential_parent_copy.facts = [Fact(trait=fact.trait, value=fact.value, collected_by=potential_parent.paw) for
+                                       fact in produced_facts]
         verifier_operation.chain.append(potential_parent_copy)
         filtered_rel_reqs_and_facts = self._filter_reqs_by_used_facts(relevant_requirements_and_facts, produced_facts)
         links_with_relevant_reqs_and_facts = self._create_test_links(link, filtered_rel_reqs_and_facts)
         return links_with_relevant_reqs_and_facts, verifier_operation
+
+    def _get_produced_facts(self, link):
+        return [fact for fact in self._facts_from_link_relationships(link) if
+                          not self._is_fact_used(fact, link)]
 
     @staticmethod
     def _facts_from_link_relationships(link):
@@ -167,12 +169,24 @@ class LogicalPlanner:
         return False
 
     def _filter_reqs_by_used_facts(self, requirements_and_facts, filter_facts):
+        # also, if facts match, replace req_fact with the filter_fact
         filtered_reqs_and_facts = dict()
         for req in requirements_and_facts:
-            if any(self._do_facts_match(req_fact, filter_f) for
-                   req_fact in requirements_and_facts[req]['facts'] for filter_f in filter_facts):
-                filtered_reqs_and_facts[req] = requirements_and_facts[req]
+            filtered_facts = self._replace_matched_facts_with_filter_facts(requirements_and_facts[req], filter_facts)
+            if filtered_facts:
+                filtered_reqs_and_facts[req] = dict(requirement=requirements_and_facts[req]['requirement'],
+                                                    facts=filtered_facts)
         return filtered_reqs_and_facts
+
+    def _replace_matched_facts_with_filter_facts(self, requirement_and_facts, filter_facts):
+        filtered_facts = []
+        contains_filter_fact = False
+        for req_fact in requirement_and_facts['facts']:
+            for ff in filter_facts:
+                if self._do_facts_match(req_fact, ff):
+                    contains_filter_fact = True
+                    filtered_facts.append(ff)
+        return filtered_facts if contains_filter_fact else False
 
     @staticmethod
     def _do_facts_match(fact1, fact2):
@@ -186,39 +200,20 @@ class LogicalPlanner:
             ability_with_req = copy.copy(original_link.ability)
             ability_with_req.requirements = [requirements_and_facts[req]['requirement']]
             link_with_req.ability = ability_with_req
-            link_with_req.facts = requirements_and_facts[req]['facts']
+            link_with_req.used = requirements_and_facts[req]['facts']
             links.append(link_with_req)
         return links
+
+    @staticmethod
+    def _remove_duplicate_links(links):
+        unique_links = []
+        for link in links:
+            if not any(link.command == ul.command and link.paw == ul.paw for ul in unique_links):
+                unique_links.append(link)
+        return unique_links
 
     async def _run_links(self, links):
         link_ids = []
         for link in links:
             link_ids.append(await self.operation.apply(link))
         await self.planning_svc.execute_links(self, self.operation, link_ids, True)
-
-
-
-####### If response, want to make sure "parent" links are from the same agent - check paw provenance
-####### If fact is in link's relationship, but not in link's facts, check if the fact is in link's used list. If not, add it to link's facts to satisfy paw prov requirements.
-
-
-    # async def execute(self, **kwargs):
-    #     links = await self.planning_svc.get_links(operation=self.operation,
-    #                                               stopping_conditions=self.stopping_conditions, planner=self)
-    #     to_apply, detections_being_handled = self.select_links(links)
-    #     for link in to_apply:
-    #         await self.operation.apply(link)
-    #     self.handled_detection_and_response_links.extend(list(detections_being_handled))
-    #
-    # def select_links(self, links):
-    #     to_apply = []
-    #     detections_being_handled = set()
-    #     for link in links:
-    #         if link.ability.tactic == 'detection':
-    #             to_apply.append(link)
-    #         elif any(uf not in self.handled_detection_and_response_links for uf in link.used) and \
-    #                 link.ability.tactic in ['hunt', 'response']:
-    #             to_apply.append(link)
-    #             if link.ability.tactic == 'response':
-    #                 detections_being_handled.update(link.used)
-    #     return to_apply, detections_being_handled
