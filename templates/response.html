@@ -9,6 +9,16 @@
                 actions are stored here as abilities. Instead of adversaries,you'll find defenders, which can be
                 launched on a host to protect it against an attacker.
             </p>
+            <select id="auto-response-select">
+                {% for adv in adversaries %}
+                    {% if adv.adversary_id == auto_response.adversary_id %}
+                        <option id="auto-{{ adv.adversary_id }}" value="{{ adv.adversary_id }}" selected>{{ adv.name }}</option>
+                    {% else %}
+                        <option id="auto-{{ adv.adversary_id }}" value="{{ adv.adversary_id }}">{{ adv.name }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <button id="save-auto-response" type="button" class="button-success atomic-button" onclick="saveAutoResponse()">Save</button>
         </div>
         <div class="column" style="flex:75%">
             <div class="column" style="flex:67%;padding:15px;text-align: left">
@@ -28,3 +38,12 @@
         </div>
     </div>
 </div>
+
+<script>
+    function saveAutoResponse() {
+        function streamUpdate() {
+            stream('Auto responder has been updated');
+        }
+        restRequest('POST', {'adversary_id': $('#auto-response-select').val()}, streamUpdate, '/plugin/responder/update');
+    }
+</script>
