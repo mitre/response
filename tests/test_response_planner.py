@@ -80,7 +80,7 @@ class TestResponsePlanner:
     def test_do_setup(self, loop, data_svc, setup_planner_test, planning_svc):
         agent, operation, planner_obj, response_planner, det_link = setup_planner_test
         create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='setup',
-                                                 command='setup0', ability_id='setup0', repeatable=True)
+                                 command='setup0', ability_id='setup0', repeatable=True)
 
         loop.run_until_complete(response_planner.setup())
         assert len(operation.chain) == 2
