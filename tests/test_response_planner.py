@@ -393,3 +393,27 @@ class TestResponsePlanner:
         response_ability.additional_info['severity_requirement'] = 50
         loop.run_until_complete(response_planner.response())
         assert len(operation.chain) == 2
+
+    @pytest.mark.parametrize('tactic', ['detection', 'hunt'])
+    def test_is_detection_not_responded_to(self, loop, data_svc, planning_svc, setup_planner_test, tactic):
+        """
+        There is a detection that has been processed but not responded to. The function should determine that a new,
+        identical detection/hunt ability matches another link with the above condition.
+        A match is determined by the links' paws and commands. Therefore, a hunt ability can be compared with a
+        detection ability to determine matches.
+        Once the original detection has been marked as responded to, the identical detection should be determined to be
+        responded to.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        response_planner.next_bucket = None
+        response_planner.severity[agent.paw] = 0
+        loop.run_until_complete(response_planner.execute())
+
+        copy_ability = copy.copy(det_link.ability)
+        copy_ability.tactic = tactic
+        copy_ability.buckets = [tactic]
+        identical_det_link = Link(command=copy_ability.test, paw=agent.paw, ability=copy_ability)
+        assert loop.run_until_complete(response_planner._is_detection_not_responded_to(identical_det_link))
+
+        response_planner.links_responded.add(det_link)
+        assert not loop.run_until_complete(response_planner._is_detection_not_responded_to(identical_det_link))
