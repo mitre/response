@@ -292,6 +292,17 @@ class LogicalPlanner:
                 unique_links.append(link)
         return unique_links
 
+    async def _is_detection_not_responded_to(self, new_link):
+        """
+        We don't want to repeat the same detection ability if we know it's just going to produce the same result over
+        again. This checks to see if we're repeating a detection ability that produced relationships but hasn't been
+        responded to yet.
+        """
+        for link in [lnk for lnk in self.processed if lnk.relationships and lnk not in self.links_responded]:
+            if new_link.command == link.command and new_link.paw == link.paw:
+                return True
+        return False
+
     async def _run_links(self, links):
         """
         Apply and execute the bucket's links.
