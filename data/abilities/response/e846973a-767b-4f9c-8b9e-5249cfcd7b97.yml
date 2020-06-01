@@ -30,3 +30,5 @@
           target: file.backup.name
     - plugins.stockpile.app.requirements.paw_provenance:
         - source: file.backup.name
+    - plugins.stockpile.app.requirements.paw_provenance:
+        - source: file.sensitive.path
