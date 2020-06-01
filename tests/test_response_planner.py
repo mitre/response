@@ -79,7 +79,7 @@ class TestResponsePlanner:
 
     def test_do_setup(self, loop, data_svc, setup_planner_test, planning_svc):
         agent, operation, planner_obj, response_planner, det_link = setup_planner_test
-        setup_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='setup',
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic='setup',
                                                  command='setup0', ability_id='setup0', repeatable=True)
 
         loop.run_until_complete(response_planner.setup())
@@ -261,10 +261,8 @@ class TestResponsePlanner:
         requirements = [Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
                                     relationship_match=[dict(source='some.test.fact1')])]
         create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
-                                                command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True,
-                                                requirements=requirements)
-
-        ao = operation.adversary.atomic_ordering
+                                 command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True,
+                                 requirements=requirements)
 
         loop.run_until_complete(getattr(response_planner, tactic)())
         assert len(operation.chain) == 2

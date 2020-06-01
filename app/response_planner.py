@@ -59,7 +59,7 @@ class LogicalPlanner:
         """
         If a completed link produced a detection and had a severity modifier, modify its paw's severity score.
         """
-        for link in [l for l in self.operation.chain if l not in self.processed]:
+        for link in [lnk for lnk in self.operation.chain if lnk not in self.processed]:
             if link.ability.tactic in ['detection', 'response'] and self._get_produced_facts(link) \
                     and 'severity_modifier' in link.ability.additional_info:
                 self.severity[link.paw] += link.ability.additional_info['severity_modifier']
@@ -214,8 +214,7 @@ class LogicalPlanner:
         """
         Facts that are the results of parsing output, and not just used facts that are part of a relationship.
         """
-        return [fact for fact in self._facts_from_link_relationships(link) if
-                          not self._is_fact_used(fact, link)]
+        return [fact for fact in self._facts_from_link_relationships(link) if not self._is_fact_used(fact, link)]
 
     @staticmethod
     def _facts_from_link_relationships(link):
