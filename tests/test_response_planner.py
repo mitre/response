@@ -84,13 +84,17 @@ class TestResponsePlanner:
 
         loop.run_until_complete(response_planner.setup())
         assert len(operation.chain) == 2
+        assert len(response_planner.severity) == 1
+        assert response_planner.severity[agent.paw] == 0
 
         loop.run_until_complete(response_planner.setup())
         assert len(operation.chain) == 2
+        assert len(response_planner.severity) == 1
 
         operation.agents.append(Agent(sleep_min=1, sleep_max=2, watchdog=0, executors=['sh'], platform='linux'))
         loop.run_until_complete(response_planner.setup())
         assert len(operation.chain) == 3
+        assert len(response_planner.severity) == 2
 
     def test_do_detection(self, loop, data_svc, setup_planner_test, planning_svc):
         agent, operation, planner_obj, response_planner, det_link = setup_planner_test
@@ -166,10 +170,8 @@ class TestResponsePlanner:
 
         det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
         det_link2.used.append(det_link.facts[0])
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        det_link2.facts.append(fact2)
-        rel2 = Relationship(source=det_link.facts[0], edge='edge', target=fact2)
-        det_link2.relationships.append(rel2)
+        det_link2.facts.append(Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw))
+        det_link2.relationships.append(Relationship(source=det_link.facts[0], edge='edge', target=det_link2.facts[0]))
         operation.chain.append(det_link2)
 
         create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
@@ -258,12 +260,11 @@ class TestResponsePlanner:
 
         requirements = [Requirement(module='plugins.stockpile.app.requirements.paw_provenance',
                                     relationship_match=[dict(source='some.test.fact1')])]
-        test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
+        create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
                                                 command='#{some.test.fact1}', ability_id=tactic + '1', repeatable=True,
                                                 requirements=requirements)
 
         ao = operation.adversary.atomic_ordering
-        abilities = loop.run_until_complete(data_svc.locate('abilities', match=dict(ability_id=tuple(ao))))
 
         loop.run_until_complete(getattr(response_planner, tactic)())
         assert len(operation.chain) == 2
@@ -297,10 +298,8 @@ class TestResponsePlanner:
 
         det_link2 = Link(command=det_link.ability.test, paw=agent.paw, ability=det_link.ability)
         det_link2.used.append(det_link.facts[0])
-        fact2 = Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw)
-        det_link2.facts.append(fact2)
-        rel2 = Relationship(source=det_link.facts[0], edge='edge', target=fact2)
-        det_link2.relationships.append(rel2)
+        det_link2.facts.append(Fact(trait='some.test.fact2', value='fact2', collected_by=agent.paw))
+        det_link2.relationships.append(Relationship(source=det_link.facts[0], edge='edge', target=det_link2.facts[0]))
         operation.chain.append(det_link2)
 
         test_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation, tactic=tactic,
@@ -328,3 +327,71 @@ class TestResponsePlanner:
         assert len(operation.chain) == 1
         assert operation.chain[0] == det_link
         assert not len(response_planner._get_link_storage(tactic))
+
+    def test_severity_modifier1(self, loop, data_svc, planning_svc, setup_planner_test):
+        """
+        There is one completed link with a produced detection and a severity modifier.
+        Running execute should cause the severity score to be modified appropriately.
+        Running execute again should not change anything.
+        Two new completed links are added - one with the same paw as the first, and one with a different paw.
+        Running execute should cause the two severity scores to be modified appropriately.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        det_link.ability.additional_info['severity_modifier'] = 5
+        response_planner.next_bucket = None
+        response_planner.severity[agent.paw] = 0
+
+        loop.run_until_complete(response_planner.execute())
+        assert len(response_planner.severity) == 1
+        assert response_planner.severity[agent.paw] == 5
+
+        loop.run_until_complete(response_planner.execute())
+        assert len(response_planner.severity) == 1
+        assert response_planner.severity[agent.paw] == 5
+
+        det_link_copy = copy.copy(det_link)
+
+        det_link2 = Link(command=det_link.ability.test, paw='someotherpaw', ability=det_link.ability)
+        det_link2.facts.append(Fact(trait='some.test.fact2', value='fact2', collected_by='someotherpaw'))
+        det_link2.relationships.append(Relationship(source=det_link.facts[0], edge='edge', target=det_link2.facts[0]))
+        response_planner.severity[det_link2.paw] = 0
+
+        operation.chain.extend([det_link_copy, det_link2])
+        loop.run_until_complete(response_planner.execute())
+        assert len(response_planner.severity) == 2
+        assert response_planner.severity[agent.paw] == 10
+        assert response_planner.severity['someotherpaw'] == 5
+
+    def test_severity_modifier2(self, loop, data_svc, planning_svc, setup_planner_test):
+        """
+        A completed link that produced no detections should result in no changes to the severity score.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        det_link.ability.additional_info['severity_modifier'] = 5
+        det_link.facts = []
+        det_link.relationships = []
+        response_planner.next_bucket = None
+        response_planner.severity[agent.paw] = 0
+
+        loop.run_until_complete(response_planner.execute())
+        assert len(response_planner.severity) == 1
+        assert response_planner.severity[agent.paw] == 0
+
+    def test_severity_requirement(self, loop, data_svc, planning_svc, setup_planner_test):
+        """
+        A response ability whose severity requirement is not met should not be applied to the operation.
+        When the severity score is adjusted appropriately and this is attempted again, the ability should be applied.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        response_planner.severity[agent.paw] = 0
+        response_ability = create_and_store_ability(test_loop=loop, data_service=data_svc, op=operation,
+                                                    tactic='response', command='response', ability_id='response1',
+                                                    repeatable=True)
+        response_ability.additional_info['severity_requirement'] = 50
+        loop.run_until_complete(response_planner.response())
+        assert len(operation.chain) == 1
+
+        response_planner.severity[agent.paw] = 50
+        response_ability.additional_info['severity_requirement'] = 50
+        loop.run_until_complete(response_planner.response())
+        assert len(operation.chain) == 2

@@ -27,14 +27,17 @@ class LogicalPlanner:
         self.has_been_setup = []
         self.links_hunted = set()
         self.links_responded = set()
+        self.processed = []
         self.severity = dict()
 
     async def execute(self):
+        await self._process_link_severities()
         await self.planning_svc.execute_planner(self)
 
     async def setup(self):
-        for agent in [ag for ag in self.operation.agents if ag not in self.has_been_setup]:
-            self.has_been_setup.append(agent)
+        for agent in [ag for ag in self.operation.agents if ag.paw not in self.has_been_setup]:
+            self.has_been_setup.append(agent.paw)
+            self.severity[agent.paw] = 0
             await self.planning_svc.exhaust_bucket(self, ['setup'], self.operation, agent, batch=True)
         self.next_bucket = await self.planning_svc.default_next_bucket('setup', self.state_machine)
 
@@ -52,16 +55,30 @@ class LogicalPlanner:
 
     """ PRIVATE """
 
+    async def _process_link_severities(self):
+        """
+        If a completed link produced a detection and had a severity modifier, modify its paw's severity score.
+        """
+        for link in [l for l in self.operation.chain if l not in self.processed]:
+            if link.ability.tactic in ['detection', 'response'] and self._get_produced_facts(link) \
+                    and 'severity_modifier' in link.ability.additional_info:
+                self.severity[link.paw] += link.ability.additional_info['severity_modifier']
+            self.processed.append(link)
+
     async def _do_reactive_bucket(self, bucket):
         """
         Reactive buckets are buckets that only run abilities when there is an existing detection to be responded to.
         Detections that are responded to are kept track of in link storage sets.
+        Response abilities that have a severity requirement that isn't met are skipped.
         """
         link_storage = self._get_link_storage(bucket)
         links = await self.planning_svc.get_links(planner=self, operation=self.operation, buckets=[bucket])
         links_to_apply = []
         links_being_addressed = set()
         for link in links:
+            if bucket == 'response' and 'severity_requirement' in link.ability.additional_info and \
+                    int(link.ability.additional_info['severity_requirement']) > self.severity[link.paw]:
+                continue
             if link.used:
                 check_paw_prov = True if bucket in ['response'] else False
                 unaddressed_parents = await self._get_unaddressed_parent_links(link, link_storage, check_paw_prov)
