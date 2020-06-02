@@ -29,7 +29,7 @@
           $pidToPort = @();
           foreach ($port in (Get-NetTCPConnection -RemoteAddress 0.0.0.0 -state Listen)){
               if ($allPorts -notcontains $port.LocalPort){
-                  pidToPort += , @{pid=$port.OwningProcess;port=$port.LocalPort};
+                  $pidToPort += , @{pid=$port.OwningProcess;port=$port.LocalPort};
               }
           };
           $pidToPort | ConvertTo-Json;
