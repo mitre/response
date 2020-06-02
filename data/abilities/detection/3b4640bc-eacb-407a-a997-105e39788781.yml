@@ -29,7 +29,7 @@
     windows:
       psh,pwsh:
         command: |
-          Get-NetTCPConnection -RemotePort "#{remote.port.unauthorized}" | where-object { write-host $_.OwningProcess }
+          Get-NetTCPConnection -RemotePort "#{remote.port.unauthorized}" -EA silentlycontinue | where-object { write-host $_.OwningProcess }
         parsers:
           plugins.response.app.parsers.process:
             - source: remote.port.unauthorized
