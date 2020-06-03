@@ -35,7 +35,7 @@
           files=$(find $filepath 2>/dev/null);
           output="";
           for file in $files;
-            do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);
+            do randname=$(head /dev/urandom | LC_CTYPE=C tr -dc A-Za-z0-9 | head -c 13);
             cp $file /tmp/sensitive_file_backups/$randname;
             output="${output}${file}>${randname}\n";
           done;

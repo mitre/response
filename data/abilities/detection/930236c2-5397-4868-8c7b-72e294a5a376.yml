@@ -23,7 +23,7 @@
       sh:
         command: |
           filepath="#{file.sensitive.path}";
-          if [ ! -f $filepath ] || [ "$(sha256sum $filepath | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
+          if [ ! -f $filepath ] || [ "$(shasum -a 256 $filepath | cut -d' ' -f1)" != "#{file.sensitive.hash}" ];
             then echo $filepath;
           fi
         parsers:
