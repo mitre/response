@@ -30,7 +30,7 @@
           filepath=$(echo "#{file.sensitive.path}" | sed 's/\\\*/\*/g');
           files=$(find $filepath 2>/dev/null);
           for file in $files;
-            do hash=$(sha256sum $file | cut -d' ' -f1);
+            do hash=$(shasum -a 256 $file | cut -d' ' -f1);
             output="${output}${file}>${hash}\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'

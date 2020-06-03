@@ -13,3 +13,5 @@ facts:
     value: C:\Users
   - trait: file.sensitive.path
     value: /home/*/.bashrc
+  - trait: file.sensitive.path
+    value: /Users/*/.bashrc
