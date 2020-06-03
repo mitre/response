@@ -10,6 +10,7 @@
     linux:
       sh:
         command: |
+          echo '' > /tmp/cron_jobs;
           for user in $(getent passwd | cut -f1 -d:); do
             $(crontab -u $user -l 2>/dev/null | grep -v '\#' | while read -r job; do
               echo "${user}>${job}" >> /tmp/cron_jobs;
@@ -22,7 +23,8 @@
     darwin:
       sh:
         command: |
-          for user in $(getent passwd | cut -f1 -d:); do
+          echo '' > /tmp/cron_jobs;
+          for user in $(dscl . list /Users | grep -v "^_"); do
             $(crontab -u $user -l 2>/dev/null | grep -v '\#' | while read -r job; do
               echo "${user}>${job}" >> /tmp/cron_jobs;
             done);
