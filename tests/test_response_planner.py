@@ -76,6 +76,9 @@ def setup_planner_test(loop, mocker, data_svc, init_base_world, planning_svc):
 
 
 class TestResponsePlanner:
+    """
+    Requires pytest-mock to be installed, and __init__.py files in the plugins directory.
+    """
 
     def test_do_setup(self, loop, data_svc, setup_planner_test, planning_svc):
         agent, operation, planner_obj, response_planner, det_link = setup_planner_test
