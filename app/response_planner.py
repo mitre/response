@@ -35,7 +35,7 @@ class LogicalPlanner:
         await self.planning_svc.execute_planner(self)
 
     async def setup(self):
-        for agent in [ag for ag in self.operation.agents if ag.paw not in self.has_been_setup]:
+        for agent in [agt for agt in self.operation.agents if agt.paw not in self.has_been_setup]:
             self.has_been_setup.append(agent.paw)
             self.severity[agent.paw] = 0
             await self.planning_svc.exhaust_bucket(self, 'setup', self.operation, agent, batch=True)
@@ -58,10 +58,12 @@ class LogicalPlanner:
     async def _process_link_severities(self):
         """
         If a completed link produced a detection and had a severity modifier, modify its paw's severity score.
+        If the completed link is a repeat of an unresponded detection, don't add the severity modifier.
         """
         for link in [lnk for lnk in self.operation.chain if lnk not in self.processed]:
-            if link.ability.tactic in ['detection', 'response'] and self._get_produced_facts(link) \
-                    and 'severity_modifier' in link.ability.additional_info:
+            if 'severity_modifier' in link.ability.additional_info and \
+                    link.ability.tactic in ['detection', 'response'] and self._get_produced_facts(link) and \
+                    not (await self._does_new_detection_match_unresponded_detection(link)):
                 self.severity[link.paw] += link.ability.additional_info['severity_modifier']
             self.processed.append(link)
 
@@ -79,7 +81,7 @@ class LogicalPlanner:
             if bucket == 'response' and 'severity_requirement' in link.ability.additional_info and \
                     int(link.ability.additional_info['severity_requirement']) > self.severity[link.paw]:
                 continue
-            if link.used:
+            elif link.used:
                 check_paw_prov = True if bucket in ['response'] else False
                 unaddressed_parents = await self._get_unaddressed_parent_links(link, link_storage, check_paw_prov)
                 if len(unaddressed_parents):
@@ -129,14 +131,14 @@ class LogicalPlanner:
         Get all the links in the operation's chain that contain the fact in at least one relationship.
         """
         links_with_fact = []
-        for link in self.operation.chain if paw is None else [lnk for lnk in self.operation.chain if lnk.paw == paw]:
+        for link in self.operation.chain if not paw else [lnk for lnk in self.operation.chain if lnk.paw == paw]:
             if any(self._fact_in_relationship(fact, rel) for rel in link.relationships):
                 links_with_fact.append(link)
         return links_with_fact
 
     def _fact_in_relationship(self, fact, relationship):
-        for f in [relationship.source, relationship.target]:
-            if f and self._do_facts_match(f, fact):
+        for rel_fact in [relationship.source, relationship.target]:
+            if rel_fact and self._do_facts_match(rel_fact, fact):
                 return True
         return False
 
@@ -146,13 +148,27 @@ class LogicalPlanner:
         requirements isn't really a parent. If the link-to-be-applied doesn't have any requirements associated with the
         fact produced by the potential parent, then that works too - the potential parent is an actual parent.
         """
+        relevant_requirements_and_facts = self._get_relevant_requirements_and_facts(link, potential_parent)
+        if 'is_parent_link' in relevant_requirements_and_facts:
+            return 1
+        links_with_relevant_reqs, verifier_operation = self._create_test_op_and_links(link, potential_parent,
+                                                                                      relevant_requirements_and_facts)
+        return len(await self.planning_svc.remove_links_missing_requirements(links_with_relevant_reqs,
+                                                                             verifier_operation)) if \
+            relevant_requirements_and_facts else 0
+
+    def _get_relevant_requirements_and_facts(self, link, potential_parent):
+        """
+        Finds the facts that are shared between the link's used facts and the potential parent's relationships, then
+        determines which requirements in the link are related to those facts.
+        """
         used_facts = [fact for fact in link.used for rel in potential_parent.relationships if
                       self._fact_in_relationship(fact, rel)]
         relevant_requirements_and_facts = dict()
         for fact in used_facts:
             rel_reqs_for_fact = self._get_relevant_requirements_for_fact_in_link(link, fact)
             if not rel_reqs_for_fact and self._is_fact_produced(fact, potential_parent):
-                return 1
+                return dict(is_parent_link=True)
             else:
                 for rel_req in rel_reqs_for_fact:
                     req_unique = self._unique_for_requirement(rel_req)
@@ -160,11 +176,7 @@ class LogicalPlanner:
                         relevant_requirements_and_facts[req_unique]['facts'].append(fact)
                     else:
                         relevant_requirements_and_facts[req_unique] = dict(requirement=rel_req, facts=[fact])
-        links_with_relevant_reqs, verifier_operation = self._create_test_op_and_links(link, potential_parent,
-                                                                                      relevant_requirements_and_facts)
-        return len(await self.planning_svc.remove_links_missing_requirements(links_with_relevant_reqs,
-                                                                             verifier_operation)) if \
-            relevant_requirements_and_facts else 0
+        return relevant_requirements_and_facts
 
     @staticmethod
     def _get_relevant_requirements_for_fact_in_link(link, fact):
@@ -300,11 +312,46 @@ class LogicalPlanner:
         We don't want to repeat the same detection ability if we know it's just going to produce the same result over
         again. This checks to see if we're repeating a detection ability that produced relationships but hasn't been
         responded to yet.
+        This is one option to solve this problem, the other is to rerun detections but don't count their severity
+        modifiers if they're just duplicated, unresponded detections.
+        all.
         """
         for link in [lnk for lnk in self.processed if lnk.relationships and lnk not in self.links_responded]:
             if new_link.command == link.command and new_link.paw == link.paw:
                 return True
         return False
+
+    async def _does_new_detection_match_unresponded_detection(self, new_link):
+        """
+        We don't want to recount the severity modifier of a detection if it's the same detection as a previous one that
+        hasn't been responded to yet. This is needed because it's possible that there's a detection whose response
+        requires a severity level that hasn't been met yet. This means that the detection will keep reappearing, and
+        bloat the severity score without this check.
+        This is one option to solve this problem, the other is to not rerun detections that haven't been responded to at
+        all. I think this way is safer though.
+        """
+        for link in [lnk for lnk in self.processed if lnk.relationships and lnk not in self.links_responded]:
+            if self._do_links_match(new_link, link):
+                return True
+        return False
+
+    def _do_links_match(self, link1, link2):
+        if link1.command == link2.command and link1.paw == link2.paw:
+            for link1_rel in link1.relationships:
+                if not any(self._do_relationships_match(link1_rel, link2_rel) for link2_rel in link2.relationships):
+                    return False
+            return True
+        else:
+            return False
+
+    def _do_relationships_match(self, rel1, rel2):
+        """
+        Relationships match if the source facts match, the edges match, and either have edge facts that match or neither
+        has an edge fact.
+        """
+        return self._do_facts_match(rel1.source, rel2.source) and rel1.edge == rel2.edge and \
+            not any([rel1.target, rel2.target]) or \
+            all([rel1.target, rel2.target]) and self._do_facts_match(rel1.target, rel2.target)
 
     async def _run_links(self, links):
         """

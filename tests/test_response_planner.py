@@ -350,14 +350,17 @@ class TestResponsePlanner:
         assert len(response_planner.severity) == 1
         assert response_planner.severity[agent.paw] == 5
 
-        det_link_copy = copy.copy(det_link)
+        det_link2 = copy.copy(det_link)
+        det_link2.command = "a different command"
 
-        det_link2 = Link(command=det_link.ability.test, paw='someotherpaw', ability=det_link.ability)
-        det_link2.facts.append(Fact(trait='some.test.fact2', value='fact2', collected_by='someotherpaw'))
-        det_link2.relationships.append(Relationship(source=det_link.facts[0], edge='edge', target=det_link2.facts[0]))
-        response_planner.severity[det_link2.paw] = 0
+        det_link_other = Link(command=det_link.ability.test, paw='someotherpaw', ability=det_link.ability)
+        det_link_other.facts.append(Fact(trait='some.test.fact2', value='fact2', collected_by='someotherpaw'))
+        det_link_other.relationships.append(Relationship(source=det_link.facts[0],
+                                                         edge='edge',
+                                                         target=det_link_other.facts[0]))
+        response_planner.severity[det_link_other.paw] = 0
 
-        operation.chain.extend([det_link_copy, det_link2])
+        operation.chain.extend([det_link2, det_link_other])
         loop.run_until_complete(response_planner.execute())
         assert len(response_planner.severity) == 2
         assert response_planner.severity[agent.paw] == 10
@@ -377,6 +380,27 @@ class TestResponsePlanner:
         loop.run_until_complete(response_planner.execute())
         assert len(response_planner.severity) == 1
         assert response_planner.severity[agent.paw] == 0
+
+    def test_severity_modifier3(self, loop, data_svc, planning_svc, setup_planner_test):
+        """
+        A new detection with the same command, paw, and relationships as a previous, unresponded detection should not
+        affect the severity score.
+        """
+        agent, operation, planner_obj, response_planner, det_link = setup_planner_test
+        det_link.ability.additional_info['severity_modifier'] = 5
+        response_planner.next_bucket = None
+        response_planner.severity[agent.paw] = 0
+
+        loop.run_until_complete(response_planner.execute())
+        assert len(response_planner.severity) == 1
+        assert response_planner.severity[agent.paw] == 5
+
+        det_link_copy = copy.copy(det_link)
+
+        operation.chain.append(det_link_copy)
+        loop.run_until_complete(response_planner.execute())
+        assert len(response_planner.severity) == 1
+        assert response_planner.severity[agent.paw] == 5
 
     def test_severity_requirement(self, loop, data_svc, planning_svc, setup_planner_test):
         """
