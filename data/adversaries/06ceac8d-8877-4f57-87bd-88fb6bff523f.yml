@@ -1,0 +1,28 @@
+id: 06ceac8d-8877-4f57-87bd-88fb6bff523f
+name: Full Incident Responder
+description: A defender made to be used with the Response Planner
+atomic_ordering:
+  # setup
+  - f313a0d7-2327-4f69-8da4-a6efd6135121  #hash sensitive files
+  - 34bc0116-13b6-4dd5-b681-9554c2a1fa95  #backup sensitive files
+  - 90a67a85-e81c-4525-8bae-12a2c5787d9a  #hash powershell profiles
+  - 83d7cf63-e10a-4615-a92e-dce257bf3b9d  #backup powershell profiles
+  - ba907d7a-b334-47e7-b652-4e481b5aa534  #cronjobs baseline
+  - a65a62e1-b8c0-4f88-b564-166e7499d560  #scheduled tasks baseline
+  # detection
+  - 930236c2-5397-4868-8c7b-72e294a5a376  #modified sensitive files
+  - ee54384f-cfbc-4228-9dc1-cc5632307afb  #new cronjobs
+  - 8bc73098-54d1-4f69-abd5-271e3e2da5df  #new scheduled tasks
+  - 3b4640bc-eacb-407a-a997-105e39788781  #find unauthorized processes
+  - 1b4aa8d5-ba97-4b9b-92a3-eaaaffbfdf0a  #find atypical open ports
+  - 77272c88-ccf5-4225-a3d9-f9e171d1ca5b  #acquire suspicious files
+  - 1226f8ec-e2e5-4311-88e7-378c0e5cc7ce  #suspicious urls in mail
+  # hunt
+  - f9b3eff0-e11c-48de-9338-1578b351b14b  #hunt for known suspicious files
+  # response
+  - e846973a-767b-4f9c-8b9e-5249cfcd7b97  #restore file backup
+  - 32e563bb-ba06-4bcc-b817-fc2c434c0b66  #remove unauthorized cronjob
+  - 4744d99f-5fea-42a8-8ec4-c228db57caea  #remove unauthorized scheduled task
+  - 02fb7fa9-8886-4330-9e65-fa7bb1bc5271  #kill rogue process
+  - 5ec7ae3b-c909-41bb-9b6b-dadec409cd40  #delete known suspicious files
+  - 2ca64acd-dc12-4cc8-b78a-6a182508a50b  #inoculate c2
