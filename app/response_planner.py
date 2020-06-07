@@ -38,11 +38,11 @@ class LogicalPlanner:
         for agent in [ag for ag in self.operation.agents if ag.paw not in self.has_been_setup]:
             self.has_been_setup.append(agent.paw)
             self.severity[agent.paw] = 0
-            await self.planning_svc.exhaust_bucket(self, ['setup'], self.operation, agent, batch=True)
+            await self.planning_svc.exhaust_bucket(self, 'setup', self.operation, agent, batch=True)
         self.next_bucket = await self.planning_svc.default_next_bucket('setup', self.state_machine)
 
     async def detection(self):
-        await self.planning_svc.exhaust_bucket(self, ['detection'], self.operation, batch=True)
+        await self.planning_svc.exhaust_bucket(self, 'detection', self.operation, batch=True)
         self.next_bucket = await self.planning_svc.default_next_bucket('detection', self.state_machine)
 
     async def hunt(self):
@@ -51,7 +51,7 @@ class LogicalPlanner:
 
     async def response(self):
         await self._do_reactive_bucket(bucket='response')
-        self.next_bucket = await self.planning_svc.default_next_bucket('response', self.state_machine)
+        self.next_bucket = 'detection'
 
     """ PRIVATE """
 

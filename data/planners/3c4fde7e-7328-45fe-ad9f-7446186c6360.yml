@@ -8,3 +8,5 @@ description: |
   occurrences on other endpoints within the operation, and to respond to the detections in order to minimize the impact
   of adversary activity.
 module: plugins.response.app.response_planner
+params: {}
+ignore_enforcement_modules: []
