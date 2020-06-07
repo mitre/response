@@ -1,20 +1,27 @@
-import re
-
 from app.objects.secondclass.c_fact import Fact
 from app.objects.secondclass.c_relationship import Relationship
 from app.utility.base_parser import BaseParser
 
 
 class Parser(BaseParser):
+    """
+    Expects info to be given in the following format:
+    ** source>target
+    where source is the key and target is the value.
+
+    Saves the following relationship
+    - source: filepath
+      edge: <has_hash>  -> this can be named anything
+      target: hash
+    """
 
     def parse(self, blob):
         relationships = []
-        guids = re.findall(r'\bProcessGuid: {(.*)}', blob, re.IGNORECASE)
-        for guid in guids:
+        for match in self.line(blob.strip()):
             for mp in self.mappers:
-                src_fact_value = [f.value for f in self.used_facts if f.trait == mp.source].pop()
-                source = self.set_value(mp.source, src_fact_value, self.used_facts)
-                target = self.set_value(mp.target, guid, self.used_facts)
+                strings = match.split('>')
+                source = strings[0].strip()
+                target = strings[1].strip()
                 relationships.append(
                     Relationship(source=Fact(mp.source, source),
                                  edge=mp.edge,

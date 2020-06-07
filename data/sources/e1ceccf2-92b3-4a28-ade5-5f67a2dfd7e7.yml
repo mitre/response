@@ -11,3 +11,7 @@ facts:
     value: 7012
   - trait: file.search.directory
     value: C:\Users
+  - trait: file.sensitive.path
+    value: /home/*/.bashrc
+  - trait: file.sensitive.path
+    value: /Users/*/.bashrc
