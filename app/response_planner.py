@@ -151,7 +151,7 @@ class LogicalPlanner:
         relevant_requirements_and_facts = dict()
         for fact in used_facts:
             rel_reqs_for_fact = self._get_relevant_requirements_for_fact_in_link(link, fact)
-            if not rel_reqs_for_fact and fact in self._get_produced_facts(potential_parent):
+            if not rel_reqs_for_fact and self._is_fact_produced(fact, potential_parent):
                 return 1
             else:
                 for rel_req in rel_reqs_for_fact:
@@ -262,6 +262,9 @@ class LogicalPlanner:
     @staticmethod
     def _do_facts_match(fact1, fact2):
         return fact1.trait == fact2.trait and fact1.value == fact2.value
+
+    def _is_fact_produced(self, fact, parent_link):
+        return any(self._do_facts_match(fact, parent_fact) for parent_fact in self._get_produced_facts(parent_link))
 
     @staticmethod
     def _create_test_links(original_link, requirements_and_facts):
