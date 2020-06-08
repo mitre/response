@@ -1,0 +1,49 @@
+---
+- id: 2ed3c315-2022-499e-a844-1bbd119d0abe
+  name: Hash Sensitive Directories
+  description: Acquire hashes of compressed sensitive directories as a baseline to check if they are changed in the future
+  tactic: setup
+  technique:
+    attack_id: x
+    name: x
+  repeatable: False
+  platforms:
+    linux:
+      sh:
+        command: |
+          output="";
+          dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
+          directories=$(find $filepath -maxdepth 0 -type d 2>/dev/null);
+          for directory in $directories;
+            do tar -czvf /tmp/dir_sens_comp $directory;
+            hash=$(sha256sum /tmp/dir_sens_comp | cut -d' ' -f1);
+            output="${output}${file}>${hash}\n";
+            rm -f /tmp/dir_sens_comp
+          done;
+          echo $output | sed '/^[[:space:]]*$/d'
+        parsers:
+          plugins.response.app.parsers.key_value:
+            - source: directory.sensitive.path
+              edge: has_hash
+              target: directory.sensitive.hash
+    darwin:
+      sh:
+        command: |
+          output="";
+          dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
+          directories=$(find $filepath -maxdepth 0 -type d 2>/dev/null);
+          for directory in $directories;
+            do tar -czvf /tmp/dir_sens_comp $directory;
+            hash=$(sha256sum /tmp/dir_sens_comp | cut -d' ' -f1);
+            output="${output}${file}>${hash}\n";
+            rm -f /tmp/dir_sens_comp
+          done;
+          echo $output | sed '/^[[:space:]]*$/d'
+        parsers:
+          plugins.response.app.parsers.key_value:
+            - source: directory.sensitive.path
+              edge: has_hash
+              target: directory.sensitive.hash
+  requirements:
+    - plugins.response.app.requirements.source_fact:
+        - source: directory.sensitive.path
