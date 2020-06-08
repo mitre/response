@@ -13,12 +13,12 @@
         command: |
           output="";
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
-          directories=$(find $filepath -maxdepth 0 -type d 2>/dev/null);
+          directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            do tar -czvf /tmp/dir_sens_comp $directory;
+            do tar -czf /tmp/dir_sens_comp -C $directory .;
             hash=$(sha256sum /tmp/dir_sens_comp | cut -d' ' -f1);
-            output="${output}${file}>${hash}\n";
-            rm -f /tmp/dir_sens_comp
+            output="${output}${directory}>${hash}\n";
+            rm -f /tmp/dir_sens_comp;
           done;
           echo $output | sed '/^[[:space:]]*$/d'
         parsers:
@@ -31,12 +31,12 @@
         command: |
           output="";
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
-          directories=$(find $filepath -maxdepth 0 -type d 2>/dev/null);
+          directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            do tar -czvf /tmp/dir_sens_comp $directory;
-            hash=$(sha256sum /tmp/dir_sens_comp | cut -d' ' -f1);
-            output="${output}${file}>${hash}\n";
-            rm -f /tmp/dir_sens_comp
+            do tar -czf /tmp/dir_sens_comp -C $directory .;
+            hash=$(shasum -a 256 /tmp/dir_sens_comp | cut -d' ' -f1);
+            output="${output}${directory}>${hash}\n";
+            rm -f /tmp/dir_sens_comp;
           done;
           echo $output | sed '/^[[:space:]]*$/d'
         parsers:

@@ -13,11 +13,11 @@
         command: |
           mkdir -p /tmp/sensitive_file_backups;
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
-          directories=$(find $filepath -maxdepth 0 -type d 2>/dev/null);
+          directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           output="";
           for directory in $directories;
             do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);
-            tar -czvf /tmp/sensitive_file_backups/$randname $directory;
+            tar -czf /tmp/sensitive_file_backups/${randname}.tar.gz -C $directory .;
             output="${output}${directory}>${randname}\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'
@@ -33,12 +33,12 @@
         command: |
           mkdir -p /tmp/sensitive_file_backups;
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
-          directories=$(find $filepath -maxdepth 0 -type d 2>/dev/null);
+          directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           output="";
           for directory in $directories;
             do randname=$(head /dev/urandom | LC_CTYPE=C tr -dc A-Za-z0-9 | head -c 13);
-            tar -czvf /tmp/sensitive_file_backups/$randname $directory;
-            output="${output}${directory}>${randname}\n";
+            tar -czf /tmp/sensitive_file_backups/${randname}.tar.gz -C $directory .;
+            output="${output}${directory}>${randname}.tar.gz\n";
           done;
           echo $output | sed '/^[[:space:]]*$/d'
         parsers:
