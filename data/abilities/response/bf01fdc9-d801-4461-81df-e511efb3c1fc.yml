@@ -11,14 +11,23 @@
       sh:
         command: |
           directory="#{directory.sensitive.path}";
+          mkdir -p $directory;
           rm -r ${directory}/*;
           tar -xzf /tmp/sensitive_file_backups/#{directory.sensitive.backup} -C $directory;
     darwin:
       sh:
         command: |
           directory="#{directory.sensitive.path}";
+          mkdir -p $directory;
           rm -r ${directory}/*;
           tar -xzf /tmp/sensitive_file_backups/#{directory.sensitive.backup} -C $directory;
+    windows:
+      psh:
+        command: |
+          $directory = "#{directory.sensitive.path}";
+          New-Item -ItemType Directory -Force -Path $directory;
+          Remove-Item -Path "$($directory)\*" -Recurse;
+          Expand-Archive -LiteralPath "C:\Users\Public\sensitive_file_backups\#{directory.backup.name}" -DestinationPath "$($directory)\";
   requirements:
     - plugins.response.app.requirements.has_property:
         - source: directory.sensitive.path

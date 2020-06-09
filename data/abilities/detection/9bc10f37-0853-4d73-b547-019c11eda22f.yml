@@ -43,6 +43,25 @@
             - source: directory.sensitive.path
               edge: has_property
               target: has_been_modified
+    windows:
+      psh:
+        command: |
+          $directory = "#{directory.sensitive.path}";
+          if (Test-Path -PathType Container $directory) {
+            Compress-Archive -Force -Path $($_.FullName + "\*") -DestinationPath $("C:\Users\Public\dir_sens_comp.zip");
+            $hash = (Get-FileHash C:\Users\Public\dir_sens_comp.zip).Hash;
+            Remove-Item -Force C:\Users\Public\dir_sens_comp.zip;
+            if ($hash -ne "#{directory.sensitive.hash}") {
+              echo #{directory.sensitive.path};
+            }
+          } else {
+            echo #{directory.sensitive.path};
+          }
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+            - source: directory.sensitive.path
+              edge: has_property
+              target: has_been_modified
   requirements:
     - plugins.stockpile.app.requirements.basic:
         - source: directory.sensitive.path
