@@ -1,5 +1,5 @@
 - id: 9bc10f37-0853-4d73-b547-019c11eda22f
-  name: Modified Sensitive Directories
+  name: Modified Sensitive Directory
   description: Checks sensitive file hashes against previously stored hashes to determine if the file has been modified
   tactic: detection
   technique:
