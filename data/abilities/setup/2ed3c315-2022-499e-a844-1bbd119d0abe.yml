@@ -1,4 +1,3 @@
----
 - id: 2ed3c315-2022-499e-a844-1bbd119d0abe
   name: Hash Sensitive Directories
   description: Acquire hashes of compressed sensitive directories as a baseline to check if they are changed in the future
@@ -33,7 +32,7 @@
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            do tar -czf /tmp/dir_sens_comp -C $directory .;
+            do tar -cf - -C $directory . | gzip --no-name > /tmp/dir_sens_comp;
             hash=$(shasum -a 256 /tmp/dir_sens_comp | cut -d' ' -f1);
             output="${output}${directory}>${hash}\n";
             rm -f /tmp/dir_sens_comp;
