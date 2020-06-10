@@ -52,10 +52,10 @@
             $hash = (Get-FileHash C:\Users\Public\dir_sens_comp.zip).Hash;
             Remove-Item -Force C:\Users\Public\dir_sens_comp.zip;
             if ($hash -ne "#{directory.sensitive.hash}") {
-              echo #{directory.sensitive.path};
+              echo $directory;
             }
           } else {
-            echo #{directory.sensitive.path};
+            echo $directory;
           }
         parsers:
           plugins.stockpile.app.parsers.basic:

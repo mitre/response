@@ -68,9 +68,9 @@
         command: |
           New-Item -ItemType Directory -Force -Path C:\Users\Public\sensitive_file_backups | Out-Null;
           $output = '';
-          Get-ChildItem -Directory -Path #{directory.sensitive.path} -EA silentlycontinue | foreach-object {
-            if ((get-childitem $_.FullName -Force | Measure-Object).count -eq 0) {
-              echo '' > $directory\.bak;
+          Get-Item #{directory.sensitive.path} -EA silentlycontinue | Where-Object { $_ -is [System.IO.DirectoryInfo] } | foreach-object {
+            if ((Get-ChildItem $_.FullName -Force | Measure-Object).count -eq 0) {
+              echo '' > $($_.FullName + "\.bak");
             };
             $randname = -join (( 0x41..0x5A) + ( 0x61..0x7A) | Get-Random -Count 13 | % {[char]$_});
             Compress-Archive -Force -Path $($_.FullName + "\*") -DestinationPath $("C:\Users\Public\sensitive_file_backups\" + $randname + ".zip");
@@ -80,11 +80,11 @@
         parsers:
           plugins.response.app.parsers.key_value:
             - source: directory.sensitive.path
-              edge: has_hash
+              edge: has_backup
               target: directory.sensitive.backup
         cleanup: |
           Remove-Item -Recurse -Force C:\Users\Public\sensitive_file_backups -EA silentlycontinue;
-          Get-ChildItem -Directory -Path #{directory.sensitive.path} -EA silentlycontinue | foreach-object {
+          Get-Item #{directory.sensitive.path} -EA silentlycontinue | Where-Object { $_ -is [System.IO.DirectoryInfo] } | foreach-object {
             Remove-Item -Force "$($_.FullName)\.bak" -EA silentlycontinue;
           }
   requirements:

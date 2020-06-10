@@ -65,9 +65,9 @@
       psh:
         command: |
           $output = '';
-          Get-ChildItem -Directory -Path #{directory.sensitive.path} -EA silentlycontinue | foreach-object {
-            if ((get-childitem $_.FullName -Force | Measure-Object).count -eq 0) {
-              echo '' > $directory\.bak;
+          Get-Item #{directory.sensitive.path} -EA silentlycontinue | Where-Object { $_ -is [System.IO.DirectoryInfo] } | foreach-object {
+            if ((Get-ChildItem $_.FullName -Force | Measure-Object).count -eq 0) {
+              echo '' > $($_.FullName + "\.bak");
             };
             Compress-Archive -Force -Path $($_.FullName + "\*") -DestinationPath $("C:\Users\Public\dir_sens_comp.zip");
             $hash = (Get-FileHash C:\Users\Public\dir_sens_comp.zip).Hash;
@@ -82,7 +82,7 @@
               target: directory.sensitive.hash
         cleanup: |
           Remove-Item -Recurse -Force C:\Users\Public\sensitive_file_backups -EA silentlycontinue;
-          Get-ChildItem -Directory -Path #{directory.sensitive.path} -EA silentlycontinue | foreach-object {
+          Get-Item #{directory.sensitive.path} -EA silentlycontinue | Where-Object { $_ -is [System.IO.DirectoryInfo] } | foreach-object {
             Remove-Item -Force "$($_.FullName)\.bak" -EA silentlycontinue;
           }
   requirements:

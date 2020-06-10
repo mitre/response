@@ -27,7 +27,7 @@
           $directory = "#{directory.sensitive.path}";
           New-Item -ItemType Directory -Force -Path $directory | Out-Null;
           Remove-Item -Path "$($directory)\*" -Recurse -EA silentlycontinue;
-          Expand-Archive -LiteralPath "C:\Users\Public\sensitive_file_backups\#{directory.backup.name}" -DestinationPath "$($directory)\";
+          Expand-Archive -LiteralPath "C:\Users\Public\sensitive_file_backups\#{directory.sensitive.backup}" -DestinationPath "$($directory)\";
   requirements:
     - plugins.response.app.requirements.has_property:
         - source: directory.sensitive.path
