@@ -14,10 +14,10 @@
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            if [ -z "$(ls -A $directory)" ]; then
+            do if [ -z "$(ls -A $directory)" ]; then
               touch "${directory}/.bak";
             fi;
-            do tar -czf /tmp/dir_sens_comp -C $directory .;
+            tar -czf /tmp/dir_sens_comp -C $directory .;
             hash=$(sha256sum /tmp/dir_sens_comp | cut -d' ' -f1);
             output="${output}${directory}>${hash}\n";
             rm -f /tmp/dir_sens_comp;
@@ -32,7 +32,7 @@
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            rm -f "${directory}/.bak";
+            do rm -f "${directory}/.bak";
           done;
     darwin:
       sh:
@@ -41,10 +41,10 @@
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            if [ -z "$(ls -A $directory)" ]; then
+            do if [ -z "$(ls -A $directory)" ]; then
               touch "${directory}/.bak";
             fi;
-            do tar -cf - -C $directory . | gzip --no-name > /tmp/dir_sens_comp;
+            tar -cf - -C $directory . | gzip --no-name > /tmp/dir_sens_comp;
             hash=$(shasum -a 256 /tmp/dir_sens_comp | cut -d' ' -f1);
             output="${output}${directory}>${hash}\n";
             rm -f /tmp/dir_sens_comp;
@@ -59,7 +59,7 @@
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            rm -f "${directory}/.bak";
+            do rm -f "${directory}/.bak";
           done;
     windows:
       psh:

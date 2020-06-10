@@ -15,10 +15,10 @@
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           output="";
           for directory in $directories;
-            if [ -z "$(ls -A $directory)" ]; then
+            do if [ -z "$(ls -A $directory)" ]; then
               touch "${directory}/.bak";
             fi;
-            do randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);
+            randname=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13);
             tar -czf /tmp/sensitive_file_backups/${randname}.tar.gz -C $directory .;
             output="${output}${directory}>${randname}.tar.gz\n";
           done;
@@ -27,13 +27,13 @@
           plugins.response.app.parsers.key_value:
             - source: directory.sensitive.path
               edge: has_backup
-              target: directory.backup.name
+              target: directory.sensitive.backup
         cleanup: |
           rm -rf /tmp/sensitive_file_backups;
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            rm -f "${directory}/.bak";
+            do rm -f "${directory}/.bak";
           done;
     darwin:
       sh:
@@ -43,10 +43,10 @@
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           output="";
           for directory in $directories;
-            if [ -z "$(ls -A $directory)" ]; then
+            do if [ -z "$(ls -A $directory)" ]; then
               touch "${directory}/.bak";
             fi;
-            do randname=$(head /dev/urandom | LC_CTYPE=C tr -dc A-Za-z0-9 | head -c 13);
+            randname=$(head /dev/urandom | LC_CTYPE=C tr -dc A-Za-z0-9 | head -c 13);
             tar -czf /tmp/sensitive_file_backups/${randname}.tar.gz -C $directory .;
             output="${output}${directory}>${randname}.tar.gz\n";
           done;
@@ -55,13 +55,13 @@
           plugins.response.app.parsers.key_value:
             - source: directory.sensitive.path
               edge: has_backup
-              target: directory.backup.name
+              target: directory.sensitive.backup
         cleanup: |
           rm -rf /tmp/sensitive_file_backups;
           dir_path=$(echo "#{directory.sensitive.path}" | sed 's/\\\*/\*/g');
           directories=$(find $dir_path -maxdepth 0 -type d 2>/dev/null);
           for directory in $directories;
-            rm -f "${directory}/.bak";
+            do rm -f "${directory}/.bak";
           done;
     windows:
       psh:
@@ -81,7 +81,7 @@
           plugins.response.app.parsers.key_value:
             - source: directory.sensitive.path
               edge: has_hash
-              target: directory.sensitive.hash
+              target: directory.sensitive.backup
         cleanup: |
           Remove-Item -Recurse -Force C:\Users\Public\sensitive_file_backups -EA silentlycontinue;
           Get-ChildItem -Directory -Path #{directory.sensitive.path} -EA silentlycontinue | foreach-object {

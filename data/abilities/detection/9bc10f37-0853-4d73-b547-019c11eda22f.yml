@@ -1,6 +1,6 @@
 - id: 9bc10f37-0853-4d73-b547-019c11eda22f
   name: Modified Sensitive Directory
-  description: Checks sensitive file hashes against previously stored hashes to determine if the file has been modified
+  description: Checks sensitive directory hashes against previously stored hashes to determine if the directory has been modified
   tactic: detection
   technique:
     attack_id: x
@@ -15,7 +15,7 @@
             then tar -czf /tmp/dir_sens_comp -C $directory .;
             hash=$(sha256sum /tmp/dir_sens_comp | cut -d' ' -f1);
             rm -f /tmp/dir_sens_comp;
-            if [ "$hash" != "#{file.sensitive.hash}" ];
+            if [ "$hash" != "#{directory.sensitive.hash}" ];
               then echo $directory;
             fi;
           else echo $directory;
@@ -33,7 +33,7 @@
             then tar -cf - -C $directory . | gzip --no-name > /tmp/dir_sens_comp;
             hash=$(shasum -a 256 /tmp/dir_sens_comp | cut -d' ' -f1);
             rm -f /tmp/dir_sens_comp;
-            if [ "$hash" != "#{file.sensitive.hash}" ];
+            if [ "$hash" != "#{directory.sensitive.hash}" ];
               then echo $directory;
             fi;
           else echo $directory;

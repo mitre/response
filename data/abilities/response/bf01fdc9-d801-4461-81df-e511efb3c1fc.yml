@@ -36,8 +36,8 @@
     - plugins.stockpile.app.requirements.basic:
         - source: directory.sensitive.path
           edge: has_backup
-          target: directory.backup.name
+          target: directory.sensitive.backup
     - plugins.stockpile.app.requirements.paw_provenance:
-        - source: directory.backup.name
+        - source: directory.sensitive.backup
     - plugins.stockpile.app.requirements.paw_provenance:
         - source: directory.sensitive.path
