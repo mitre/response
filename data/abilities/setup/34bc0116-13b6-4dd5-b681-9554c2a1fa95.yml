@@ -52,7 +52,7 @@
         command: |
           New-Item -ItemType Directory -Force -Path C:\Users\Public\sensitive_file_backups | Out-Null;
           $output = '';
-          Get-Item #{directory.sensitive.path} -EA silentlycontinue | Where-Object { -not ($_ -is [System.IO.DirectoryInfo]) } | foreach-object {
+          Get-Item #{file.sensitive.path} -EA silentlycontinue | Where-Object { -not ($_ -is [System.IO.DirectoryInfo]) } | foreach-object {
             $randname = -join (( 0x41..0x5A) + ( 0x61..0x7A) | Get-Random -Count 13 | % {[char]$_});
             Copy-Item $_.FullName -Destination "C:\Users\Public\sensitive_file_backups\$randname";
             $output = "$($output)$($_.FullName)>$($randname)`n"
