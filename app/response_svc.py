@@ -53,15 +53,15 @@ class ResponseService(BaseService):
     async def register_handler(event_svc):
         await event_svc.observe_event('link/completed', handle_link_completed)
 
-    async def respond_to_pid(self, pid, agent, op_type):
-        available_agents = await self.get_available_agents(agent)
+    async def respond_to_pid(self, pid, red_agent, op_type):
+        available_agents = await self.get_available_agents(red_agent)
         if not available_agents:
             return
         total_facts = []
         total_links = []
 
         for blue_agent in available_agents:
-            agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, pid)
+            agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, red_agent, pid)
             total_facts.extend(agent_facts)
             total_links.extend(agent_links)
 
@@ -86,25 +86,30 @@ class ResponseService(BaseService):
             if a not in self.abilities:
                 self.abilities.append(a)
 
-    async def run_abilities_on_agent(self, blue_agent, original_pid):
+    async def run_abilities_on_agent(self, blue_agent, red_agent, original_pid):
         facts = [Fact(trait='host.process.id', value=original_pid)]
         links = []
+        relationships = []
         for ability_id in self.abilities:
-            ability_facts, ability_links = await self.run_ability_on_agent(blue_agent, ability_id, facts, original_pid)
+            ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent, ability_id, facts, original_pid, relationships)
             links.extend(ability_links)
             facts.extend(ability_facts)
+            relationships.extend(ability_relationships)
         return facts, links
 
-    async def run_ability_on_agent(self, blue_agent, ability_id, agent_facts, original_pid):
+    async def run_ability_on_agent(self, blue_agent, red_agent, ability_id, agent_facts, original_pid, relationships):
         links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
                                                             obfuscator='plain-text', facts=agent_facts)
         await self.wait_for_link_completion(links, blue_agent)
         ability_facts = []
+        ability_relationships = []
         for link in links:
+            ability_relationships.extend(link.relationships)
             link.pin = int(original_pid)
             unique_facts = link.facts[1:]
-            ability_facts.extend(unique_facts)
-        return ability_facts, links
+            ability_facts.extend(self._filter_ability_facts(unique_facts, relationships + ability_relationships,
+                                                            str(red_agent.pid), original_pid))
+        return ability_facts, links, ability_relationships
 
     @staticmethod
     async def wait_for_link_completion(links, agent):
@@ -151,3 +156,30 @@ class ResponseService(BaseService):
     async def _save_configurations(self):
         with open('plugins/response/conf/response.yml', 'w') as config:
             config.write(yaml.dump(self.get_config(name='response')))
+
+    def _filter_ability_facts(self, unique_facts, relationships, red_pid, original_pid):
+        ability_facts = []
+        for fact in unique_facts:
+            if fact.trait == 'host.process.guid':
+                if self._is_child_guid(relationships, red_pid, original_pid, fact):
+                    ability_facts.append(fact)
+            elif fact.trait == 'host.process.parentguid':
+                if self._is_red_agent_guid(relationships, red_pid, fact):
+                    ability_facts.append(fact)
+            else:
+                ability_facts.append(fact)
+        return ability_facts
+
+    @staticmethod
+    def _is_child_guid(relationships, red_pid, original_pid, fact):
+        for r in relationships:
+            if r.edge == 'has_parentid' and \
+                    (r.target.value.strip() == red_pid or r.target.value.strip() == original_pid) \
+                    and r.source.value == fact.value:
+                return True
+        return False
+
+    @staticmethod
+    def _is_red_agent_guid(relationships, red_pid, fact):
+        red_guid = [r.target.value for r in relationships if r.source.value.strip() == red_pid].pop()
+        return fact.value == red_guid

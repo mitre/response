@@ -9,15 +9,34 @@ class Parser(BaseParser):
 
     def parse(self, blob):
         relationships = []
-        guids = re.findall(r'\bProcessGuid: {(.*)}', blob, re.IGNORECASE)
-        for guid in guids:
-            for mp in self.mappers:
-                src_fact_value = [f.value for f in self.used_facts if f.trait == mp.source].pop()
-                source = self.set_value(mp.source, src_fact_value, self.used_facts)
-                target = self.set_value(mp.target, guid, self.used_facts)
-                relationships.append(
-                    Relationship(source=Fact(mp.source, source),
+        all_facts = self.used_facts
+        for mp in self.mappers:
+            matches = self.parse_options[mp.target.split('.').pop()](blob)
+            for match in matches:
+                src_fact_value = [f.value for f in all_facts if f.trait == mp.source].pop()
+                r = Relationship(source=Fact(mp.source, src_fact_value),
                                  edge=mp.edge,
-                                 target=Fact(mp.target, target))
-                )
+                                 target=Fact(mp.target, match))
+                relationships.append(r)
+                all_facts.append(r.target)
         return relationships
+
+    @property
+    def parse_options(self):
+        return dict(
+            guid=self.parse_guid,
+            parentid=self.parse_parentid,
+            parentguid=self.parse_parentguid
+        )
+
+    @staticmethod
+    def parse_guid(blob):
+        return re.findall(r'\bProcessGuid: {(.*)}', blob, re.IGNORECASE)
+
+    @staticmethod
+    def parse_parentid(blob):
+        return re.findall(r'\bParentProcessId: (.*)', blob, re.IGNORECASE)
+
+    @staticmethod
+    def parse_parentguid(blob):
+        return re.findall(r'\bParentProcessGuid: {(.*)}', blob, re.IGNORECASE)

@@ -2,7 +2,7 @@
 
 - id: 90418255-b202-4fc3-b0ea-b105bff39ca5
   name: Collect GUID from PID
-  description: Collect Sysmon ProcessGUIDs from given ProcessID
+  description: Collect process GUIDs by querying Sysmon for all process creation events associated with the given PID or whose parent PID is the given PID
   tactic: response
   technique:
     attack_id: x
@@ -12,17 +12,29 @@
       psh:
         command: |
           $Yesterday = (Get-Date) - (New-TimeSpan -Day 1);
-          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$Yesterday } | where -Property Message -Match '(?m)^[Parent]*ProcessId: #{host.process.id}\b' | Format-List;
+          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$Yesterday; Id=1 } | where -Property Message -Match '(?m)^[Parent]*ProcessId: #{host.process.id}\b' | Format-List;
         parsers:
           plugins.response.app.parsers.processguids:
             - source: host.process.id
               edge: has_guid
               target: host.process.guid
+            - source: host.process.guid
+              edge: has_parentid
+              target: host.process.parentid
+            - source: host.process.parentid
+              edge: has_guid
+              target: host.process.parentguid
       cmd:
         command: |
-          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= 86400000] and */EventData/Data[@Name='ProcessId']=#{host.process.id} or */EventData/Data[@Name='ParentProcessId']=#{host.process.id}" /f:text
+          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= 86400000] and */System/EventID=1 and */EventData/Data[@Name='ProcessId']=#{host.process.id} or */EventData/Data[@Name='ParentProcessId']=#{host.process.id}" /f:text
         parsers:
           plugins.response.app.parsers.processguids:
             - source: host.process.id
               edge: has_guid
               target: host.process.guid
+            - source: host.process.guid
+              edge: has_parentid
+              target: host.process.parentid
+            - source: host.process.parentid
+              edge: has_guid
+              target: host.process.parentguid

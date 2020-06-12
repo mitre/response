@@ -13,7 +13,7 @@
         timeout: 300
         command: |
           $Yesterday = (Get-Date) - (New-TimeSpan -Day 1);
-          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$Yesterday } | select TimeCreated,Id,ProviderName,RecordId,ProcessId,MachineName,Message | where -Property Message -Match "\bProcessGuid: {#{host.process.guid}}" | Format-List;
+          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$Yesterday; Id=1 } | select TimeCreated,Id,ProviderName,RecordId,ProcessId,MachineName,Message | where -Property Message -Match "\bProcessGuid: {#{host.process.guid}}" | Format-List;
         parsers:
           plugins.response.app.parsers.sysmon:
             - source: host.process.guid
@@ -28,7 +28,7 @@
       cmd:
         timeout: 300
         command: |
-          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= 86400000] and */EventData/Data[@Name='ProcessGuid']='#{host.process.guid}'" /f:text
+          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= 86400000] and */System/EventID=1 and */EventData/Data[@Name='ProcessGuid']='#{host.process.guid}'" /f:text
         parsers:
           plugins.response.app.parsers.sysmon:
             - source: host.process.guid
