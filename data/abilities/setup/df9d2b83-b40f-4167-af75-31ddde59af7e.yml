@@ -1,6 +1,6 @@
-- id: 622e4bda-e5a8-42bb-93d9-a7b1eebc7e41
-  name: Backup Bash Profiles
-  description: If bash profile doesn't exist, create it, and then backup each profile.
+- id: df9d2b83-b40f-4167-af75-31ddde59af7e
+  name: Hash Bash Profiles
+  description: If bash profile doesn't exist, create it, and then hash each profile.
   tactic: setup
   technique:
     attack_id: x
@@ -54,7 +54,6 @@
               then rm -f $file;
             fi;
           done;
-          rm -rf /tmp/sensitive_file_backups;
     darwin:
       sh:
         command: |
@@ -102,4 +101,3 @@
               then rm -f $file;
             fi;
           done;
-          rm -rf /tmp/sensitive_file_backups;
