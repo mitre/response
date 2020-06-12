@@ -15,3 +15,7 @@ facts:
     value: /home/*/.bashrc
   - trait: file.sensitive.path
     value: /Users/*/.bashrc
+  - trait: file.sensitive.path
+    value: /etc/crontab
+  - trait: directory.sensitive.path
+    value: /etc/cron.*
