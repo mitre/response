@@ -3,7 +3,6 @@ import copy
 import json
 import os
 import platform
-import subprocess
 import socket
 import time
 import traceback
