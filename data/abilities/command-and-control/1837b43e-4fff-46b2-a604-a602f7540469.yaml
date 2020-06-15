@@ -8,33 +8,25 @@
   platforms:
     darwin:
       sh:
-        command: |
+        command: &darwin_launch_cmd |
           server="#{app.contact.http}";
           curl -s -X POST -H "file:elasticat.py" -H "platform:darwin" $server/file/download > elasticat.py;
           pip install requests;
           python elasticat.py --server=$server --es-host="http://127.0.0.1:9200" --group=blue --minutes-since=60
         variations:
           - description: Executes elasticsearch queries and returns results via HTTP.
-            command: |
-              server="#{app.contact.http}";
-              curl -s -X POST -H "file:elasticat.py" -H "platform:darwin" $server/file/download > elasticat.py;
-              pip install requests;
-              python elasticat.py --server=$server --es-host="http://127.0.0.1:9200" --group=blue --minutes-since=60
+            command: *darwin_launch_cmd
         cleanup: |
           pkill -f elasticat
     linux:
       sh:
-        command: |
+        command: &linux_launc_cmd |
           server="#{app.contact.http}";
           curl -s -X POST -H "file:elasticat.py" -H "platform:linux" $server/file/download > elasticat.py;
           pip install requests;
           python elasticat.py --server=$server --es-host="http://127.0.0.1:9200" --group=blue --minutes-since=60
         variations:
           - description: Executes elasticsearch queries and returns results via HTTP.
-            command: |
-              server="#{app.contact.http}";
-              curl -s -X POST -H "file:elasticat.py" -H "platform:darwin" $server/file/download > elasticat.py;
-              pip install requests;
-              python elasticat.py --server=$server --es-host="http://127.0.0.1:9200" --group=blue --minutes-since=60
+            command: *linux_launc_cmd
         cleanup: |
           pkill -f elaticat
