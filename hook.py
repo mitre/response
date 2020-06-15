@@ -14,4 +14,8 @@ async def enable(services):
     app.router.add_route('GET', '/plugin/responder/gui', response_svc.splash)
     app.router.add_route('POST', '/plugin/responder/update', response_svc.update_responder)
 
+    agents = BaseWorld.get_config(name='agents', prop='deployments')
+    agents.append('1837b43e-4fff-46b2-a604-a602f7540469')  # Elasticat agent
+    BaseWorld.set_config(name='agents', prop='deployments', value=agents)
+
     await response_svc.register_handler(services.get('event_svc'))
