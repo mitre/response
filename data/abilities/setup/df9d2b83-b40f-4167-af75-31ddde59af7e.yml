@@ -34,8 +34,8 @@
         parsers:
           plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
-              edge: has_backup
-              target: file.backup.name
+              edge: has_hash
+              target: file.sensitive.hash
         cleanup: |
           user_profiles=".bashrc .bash_profile .bash_login .profile";
           output="";
@@ -81,8 +81,8 @@
         parsers:
           plugins.response.app.parsers.key_value:
             - source: file.sensitive.path
-              edge: has_backup
-              target: file.backup.name
+              edge: has_hash
+              target: file.sensitive.hash
         cleanup: |
           user_profiles=".bashrc .bash_profile .bash_login .profile";
           output="";
