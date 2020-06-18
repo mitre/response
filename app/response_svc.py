@@ -61,7 +61,7 @@ class ResponseService(BaseService):
         total_links = []
 
         for blue_agent in available_agents:
-            agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, red_agent, pid)
+            agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, str(red_agent.pid), pid)
             total_facts.extend(agent_facts)
             total_links.extend(agent_links)
 
@@ -86,18 +86,18 @@ class ResponseService(BaseService):
             if a not in self.abilities:
                 self.abilities.append(a)
 
-    async def run_abilities_on_agent(self, blue_agent, red_agent, original_pid):
+    async def run_abilities_on_agent(self, blue_agent, red_agent_pid, original_pid):
         facts = [Fact(trait='host.process.id', value=original_pid)]
         links = []
         relationships = []
         for ability_id in self.abilities:
-            ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent, ability_id, facts, original_pid, relationships)
+            ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships)
             links.extend(ability_links)
             facts.extend(ability_facts)
             relationships.extend(ability_relationships)
         return facts, links
 
-    async def run_ability_on_agent(self, blue_agent, red_agent, ability_id, agent_facts, original_pid, relationships):
+    async def run_ability_on_agent(self, blue_agent, red_agent_pid, ability_id, agent_facts, original_pid, relationships):
         links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
                                                             obfuscator='plain-text', facts=agent_facts)
         await self.wait_for_link_completion(links, blue_agent)
@@ -108,7 +108,7 @@ class ResponseService(BaseService):
             link.pin = int(original_pid)
             unique_facts = link.facts[1:]
             ability_facts.extend(self._filter_ability_facts(unique_facts, relationships + ability_relationships,
-                                                            str(red_agent.pid), original_pid))
+                                                            red_agent_pid, original_pid))
         return ability_facts, links, ability_relationships
 
     @staticmethod
