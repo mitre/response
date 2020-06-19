@@ -20,7 +20,8 @@ async def handle_link_completed(socket, path, services):
     agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
     if agent:
         pid = data['pid']
-        return await services.get('response_svc').respond_to_pid(pid, agent[0])
+        op_type = 'hidden' if data.get('access') == BaseService.Access.HIDDEN else 'visible'
+        return await services.get('response_svc').respond_to_pid(pid, agent[0], op_type)
 
 
 class ResponseService(BaseService):
@@ -32,7 +33,7 @@ class ResponseService(BaseService):
         self.agents = []
         self.adversary = None
         self.abilities = []
-        self.op = None
+        self.ops = dict()
 
     @template('response.html')
     async def splash(self, request):
@@ -52,7 +53,7 @@ class ResponseService(BaseService):
     async def register_handler(event_svc):
         await event_svc.observe_event('link/completed', handle_link_completed)
 
-    async def respond_to_pid(self, pid, agent):
+    async def respond_to_pid(self, pid, agent, op_type='visible'):
         available_agents = await self.get_available_agents(agent)
         if not available_agents:
             return
@@ -64,7 +65,7 @@ class ResponseService(BaseService):
             total_facts.extend(agent_facts)
             total_links.extend(agent_links)
 
-        await self.save_to_operation(total_facts, total_links)
+        await self.save_to_operation(total_facts, total_links, op_type)
 
     async def get_available_agents(self, agent_to_match):
         await self.refresh_blue_agents_abilities()
@@ -113,33 +114,35 @@ class ResponseService(BaseService):
                 if not agent.trusted:
                     break
 
-    async def create_fact_source(self, facts):
+    @staticmethod
+    async def create_fact_source(facts):
         source_id = str(uuid.uuid4())
         source_name = 'blue-pid-{}'.format(source_id)
         return Source(id=source_id, name=source_name, facts=facts)
 
-    async def save_to_operation(self, facts, links):
-        if not self.op or await self.op.is_finished():
+    async def save_to_operation(self, facts, links, op_type):
+        if op_type not in self.ops or await self.ops[op_type].is_finished():
             source = await self.create_fact_source(facts)
-            await self.create_operation(links=links, source=source)
+            await self.create_operation(links=links, source=source, op_type=op_type)
         else:
-            await self.update_operation(links)
-        await self.get_service('data_svc').store(self.op)
+            await self.update_operation(links, op_type)
+        await self.get_service('data_svc').store(self.ops[op_type])
 
-    async def create_operation(self, links, source):
+    async def create_operation(self, links, source, op_type):
         planner = (await self.get_service('data_svc').locate('planners', match=dict(name='batch')))[0]
         await self.get_service('data_svc').store(source)
         blue_op_name = self.get_config(prop='op_name', name='response')
-        self.op = Operation(name=blue_op_name, agents=self.agents, adversary=self.adversary,
-                            source=source, access=self.Access.BLUE, planner=planner, state='running',
-                            auto_close=False, jitter='1/4')
-        self.op.set_start_details()
-        await self.update_operation(links)
+        access = self.Access.BLUE if op_type == 'visible' else self.Access.HIDDEN
+        self.ops[op_type] = Operation(name=blue_op_name, agents=self.agents, adversary=self.adversary,
+                                      source=source, access=access, planner=planner, state='running',
+                                      auto_close=False, jitter='1/4')
+        self.ops[op_type].set_start_details()
+        await self.update_operation(links, op_type)
 
-    async def update_operation(self, links):
+    async def update_operation(self, links, op_type):
         for link in links:
-            link.operation = self.op.id
-            self.op.add_link(link)
+            link.operation = self.ops[op_type].id
+            self.ops[op_type].add_link(link)
 
     async def _apply_adversary_config(self):
         blue_adversary = self.get_config(prop='adversary', name='response')
