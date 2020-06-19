@@ -20,7 +20,7 @@ async def handle_link_completed(socket, path, services):
     agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
     if agent:
         pid = data['pid']
-        op_type = 'hidden' if data.get('access') == BaseService.Access.HIDDEN else 'visible'
+        op_type = 'hidden' if BaseService.Access(data.get('access')) == BaseService.Access.HIDDEN else 'visible'
         return await services.get('response_svc').respond_to_pid(pid, agent[0], op_type)
 
 
@@ -53,7 +53,7 @@ class ResponseService(BaseService):
     async def register_handler(event_svc):
         await event_svc.observe_event('link/completed', handle_link_completed)
 
-    async def respond_to_pid(self, pid, agent, op_type='visible'):
+    async def respond_to_pid(self, pid, agent, op_type):
         available_agents = await self.get_available_agents(agent)
         if not available_agents:
             return
