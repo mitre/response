@@ -23,3 +23,6 @@
       cmd:
         command: |
           taskkill /pid #{host.pid.unauthorized} /f
+  requirements:
+    - plugins.stockpile.app.requirements.paw_provenance:
+      - source: host.pid.unauthorized

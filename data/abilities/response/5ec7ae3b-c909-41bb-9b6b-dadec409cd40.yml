@@ -11,6 +11,6 @@
       psh:
         command: |
           Remove-Item -Path #{host.malicious.file} -Force;
-        requirements:
-          - plugins.stockpile.app.requirements.paw_provenance:
-              - source: host.malicious.file
+  requirements:
+    - plugins.stockpile.app.requirements.paw_provenance:
+        - source: host.malicious.file
