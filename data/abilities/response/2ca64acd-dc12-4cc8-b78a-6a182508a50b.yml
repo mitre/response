@@ -24,7 +24,7 @@
     windows:
       psh:
         command: |
-          if -not (Test-Path -Path .\hosts_backup) { Copy-Item -Path c:\windows\system32\drivers\etc\hosts -Destination .\hosts_backup; };
+          if (-not (Test-Path -Path .\hosts_backup)) { Copy-Item -Path c:\windows\system32\drivers\etc\hosts -Destination .\hosts_backup; };
           Add-Content c:\windows\system32\drivers\etc\hosts "127.0.0.1`t#{remote.suspicious.url}";
         cleanup: |
           Move-Item -Path .\hosts_backup -Destination c:\windows\system32\drivers\etc\hosts -Force
