@@ -5,6 +5,7 @@ import yaml
 
 from aiohttp import web
 from aiohttp_jinja2 import template
+from copy import deepcopy
 
 from app.objects.secondclass.c_fact import Fact
 from app.objects.c_operation import Operation
@@ -136,6 +137,8 @@ class ResponseService(BaseService):
         self.ops[op_type] = Operation(name=blue_op_name, agents=self.agents, adversary=self.adversary,
                                       source=source, access=access, planner=planner, state='running',
                                       auto_close=False, jitter='1/4')
+        obj = await self.get_service('data_svc').locate('objectives', match=dict(name='default'))
+        self.ops[op_type].objective = deepcopy(obj[0])
         self.ops[op_type].set_start_details()
         await self.update_operation(links, op_type)
 
