@@ -4,3 +4,4 @@ name: Query Sysmon
 atomic_ordering:
   - 90418255-b202-4fc3-b0ea-b105bff39ca5
   - 13d0d9cf-e31a-47b6-9217-f38e3f7c25ef
+  - 2331077e-7be9-4e89-b2bb-32e8d7f6a708
