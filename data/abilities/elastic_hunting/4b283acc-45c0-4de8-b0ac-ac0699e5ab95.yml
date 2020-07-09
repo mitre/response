@@ -11,6 +11,20 @@
       elasticsearch: &cmd
         command: |
           process.name:powershell.exe AND process.args:*Bypass* AND process.args:*ExecutionPolicy*
+        parsers:
+          plugins.response.app.parsers.ecs_sysmon:
+            - source: host.process.guid
+              edge: has_eventid
+              target: host.process.eventid
+            - source: host.process.guid
+              edge: has_recordid
+              target: host.process.recordid
+            - source: host.process.guid
+              edge: has_user
+              target: host.process.user
+            - source: host.process.guid
+              edge: has_pid
+              target: host.unauthorized.pid
     linux:
       elasticsearch:
         *cmd
