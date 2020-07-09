@@ -14,11 +14,12 @@ import requests
 class OperationLoop:
 
     def __init__(self, server, es_host='http://127.0.0.1:9200', index_pattern='*',
-                 result_size=10, group='blue', minutes_since=60):
+                 result_size=10, group='blue', minutes_since=60, sleep=60):
         self.es_host = es_host
         self.index_pattern = index_pattern
         self.result_size = result_size
         self.minutes_since = minutes_since
+        self.sleep = sleep
         self._profile = dict(
             server=server,
             host=socket.gethostname(),
@@ -53,8 +54,8 @@ class OperationLoop:
             try:
                 print('[*] Sending beacon for %s' % (self.paw,))
                 beacon = self._send_beacon()
-                sleep = self._handle_instructions(beacon)
-                time.sleep(sleep)
+                self.sleep = self._handle_instructions(beacon)
+                time.sleep(self.sleep)
             except Exception as e:
                 print('[-] Operation loop error: %s' % e)
                 traceback.print_exc()
@@ -108,9 +109,11 @@ if __name__ == '__main__':
     parser.add_argument('--group', default='blue')
     parser.add_argument('--minutes-since', dest='minutes_since', default=60, type=int,
                         help='How many minutes back to search for events.')
+    parser.add_argument('--sleep', default=60, type=int,
+                        help='Number of seconds to wait to check for new commands.')
     args = parser.parse_args()
     try:
         OperationLoop(args.server, es_host=args.es_host, index_pattern=args.index, group=args.group,
-                      minutes_since=args.minutes_since).start()
+                      minutes_since=args.minutes_since, sleep=args.sleep).start()
     except Exception as e:
         print('[-] Caldera server not be accessible, or: %s' % e)
