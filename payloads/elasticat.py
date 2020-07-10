@@ -77,7 +77,7 @@ class OperationLoop:
         return json.loads(self._decode_bytes(beacon['instructions']))
 
     def _send_beacon(self, results=None):
-        results = results if results else []
+        results = results or []
         beacon = self.get_profile()
         beacon['results'] = results
         body = self._encode_string(json.dumps(beacon))
