@@ -14,7 +14,15 @@ class Parser(BaseParser):
 
     def parse(self, blob):
         relationships = []
-        for event in json.loads(blob):
+        loaded = json.loads(blob)
+
+        # Do not parse facts, if the result is an array (multiple results returned).
+        # This prevents facts from being parsed when results are directly returned from elasticat,
+        # allowing them to be parsed and added to pseudo-links created for the results.  This
+        # restriction is present because a fact can not exist on more than one link in an operation at
+        # a time.
+        if isinstance(loaded, dict):
+            event = loaded
             for mp in self.mappers:
                 match = self.parse_options[mp.target.split('.').pop()](event)
                 if match:

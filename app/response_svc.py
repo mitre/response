@@ -10,6 +10,8 @@ from copy import deepcopy
 from app.objects.secondclass.c_fact import Fact
 from app.objects.c_operation import Operation
 from app.objects.c_source import Source
+from app.objects.secondclass.c_link import Link
+from app.objects.secondclass.c_result import Result
 from app.utility.base_service import BaseService
 
 
@@ -18,7 +20,14 @@ async def handle_link_completed(socket, path, services):
     paw = data['agent']['paw']
     data_svc = services.get('data_svc')
 
+    operation = await services.get('app_svc').find_op_with_link(data['link_id'])
+    link = next(filter(lambda l: l.id == int(data['link_id']), operation.chain))
     agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
+
+    # Special processing for elasticsearch results
+    if link.executor == 'elasticsearch':
+        await services.get('response_svc').process_elasticsearch_results(operation, link)
+
     if agent:
         pid = data['pid']
         op_type = 'hidden' if BaseService.Access(data.get('access')) == BaseService.Access.HIDDEN else 'visible'
@@ -67,6 +76,30 @@ class ResponseService(BaseService):
             total_links.extend(agent_links)
 
         await self.save_to_operation(total_facts, total_links, op_type)
+
+    async def process_elasticsearch_results(self, operation, link):
+        file_svc = self.get_service('file_svc')
+        contact_svc = self.get_service('contact_svc')
+        link_output = BaseService.decode_bytes(file_svc.read_result_file(str(link.id)))
+        loaded_output = json.loads(link_output)
+        for result in loaded_output:
+
+            # Add link
+            new_link = deepcopy(link)
+            new_link.facts = []
+            new_link.relationships = []
+            new_link.apply_id(new_link.host)
+            operation.chain.append(new_link)
+            await self.data_svc.store(operation)
+
+            # Add result for new link
+            new_result = Result(
+                id=str(new_link.id),
+                output=BaseService.encode_string(json.dumps(result, indent=4)),
+                pid=str(link.pid),
+                status=str(link.status)
+            )
+            await contact_svc._save(new_result)
 
     async def get_available_agents(self, agent_to_match):
         await self.refresh_blue_agents_abilities()
