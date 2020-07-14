@@ -16,7 +16,7 @@ class Parser(BaseParser):
         relationships = []
         loaded = json.loads(blob)
 
-        # Do not parse facts, if the result is an array (multiple results returned).
+        # Do not parse facts if the result is an array (multiple results returned).
         # This prevents facts from being parsed when results are directly returned from elasticat,
         # allowing them to be parsed and added to pseudo-links created for the results.  This
         # restriction is present because a fact can not exist on more than one link in an operation at
