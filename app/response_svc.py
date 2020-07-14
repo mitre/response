@@ -10,7 +10,6 @@ from copy import deepcopy
 from app.objects.secondclass.c_fact import Fact
 from app.objects.c_operation import Operation
 from app.objects.c_source import Source
-from app.objects.secondclass.c_link import Link
 from app.objects.secondclass.c_result import Result
 from app.utility.base_service import BaseService
 
