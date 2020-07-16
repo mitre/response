@@ -14,4 +14,16 @@ async def enable(services):
     app.router.add_route('GET', '/plugin/responder/gui', response_svc.splash)
     app.router.add_route('POST', '/plugin/responder/update', response_svc.update_responder)
 
+    _register_agent('1837b43e-4fff-46b2-a604-a602f7540469')  # Elasticat agent
+
     await response_svc.register_handler(services.get('event_svc'))
+
+
+def _register_agent(ability_id):
+    """
+    Registers an agent with caldera -- the agent's launch commands and variations
+     will be displayed in the 'Deploy Agent' modal of the web interface.
+    """
+    agents = set(BaseWorld.get_config(name='agents', prop='deployments'))
+    agents.add(ability_id)
+    BaseWorld.set_config(name='agents', prop='deployments', value=list(agents))
