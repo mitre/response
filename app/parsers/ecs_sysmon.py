@@ -23,13 +23,16 @@ class Parser(BaseParser):
         # a time.
         if isinstance(loaded, dict):
             event = loaded
-            for mp in self.mappers:
-                match = self.parse_options[mp.target.split('.').pop()](event)
-                if match:
-                    guid = self.parse_process_guid(event)
-                    relationships.append(Relationship(source=Fact(mp.source, guid),
-                                                      edge=mp.edge,
-                                                      target=Fact(mp.target, match)))
+            try:
+                for mp in self.mappers:
+                    match = self.parse_options[mp.target.split('.').pop()](event)
+                    if match:
+                        guid = self.parse_process_guid(event)
+                        relationships.append(Relationship(source=Fact(mp.source, guid),
+                                                          edge=mp.edge,
+                                                          target=Fact(mp.target, match)))
+            except Exception as e:
+                print(e)
         return relationships
 
     @property
@@ -40,11 +43,18 @@ class Parser(BaseParser):
             user=self.parse_user,
             guid=self.parse_process_guid,
             pid=self.parse_pid,
+            name=self.parse_process_name,
+            parent_guid=self.parse_parent_process_guid,
+            result=self.parse_elasticsearch_result,
         )
 
     @staticmethod
     def parse_process_guid(event):
-        return event['_source']['process']['entity_id']
+        return event['_source']['process']['entity_id'].strip('{').strip('}')
+
+    @staticmethod
+    def parse_parent_process_guid(event):
+        return event['_source']['process']['parent']['entity_id'].strip('{').strip('}')
 
     @staticmethod
     def parse_eventid(event):
@@ -61,3 +71,11 @@ class Parser(BaseParser):
     @staticmethod
     def parse_pid(event):
         return event['_source']['process']['pid']
+
+    @staticmethod
+    def parse_process_name(event):
+        return event['_source']['process']['name']
+
+    @staticmethod
+    def parse_elasticsearch_result(event):
+        return json.dumps(event['_source'])
