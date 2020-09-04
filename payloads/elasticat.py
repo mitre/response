@@ -55,7 +55,7 @@ class OperationLoop:
         while True:
             try:
                 print('[*] Sending beacon for %s' % (self.paw,))
-                beacon = self._send_beacon()
+                self._send_beacon()
                 self._handle_instructions()
                 time.sleep(self.sleep)
             except Exception as e:
