@@ -47,6 +47,19 @@ class Parser(BaseParser):
             parent_guid=self.parse_parent_process_guid,
         )
 
+    @classmethod
+    def parse_elasticsearch_results(cls, event):
+        elasticsearch_id = event['_id']
+        relationships = []
+        for k, v in cls.flatten_dict(event["_source"]).items():
+            relationships.append(
+                Relationship(
+                    source=Fact(trait='elasticsearch.result.id', value=elasticsearch_id),
+                    target=Fact(trait=cls._sanitize_fact_traits(k), value=v if isinstance(v, str) else json.dumps(v)),
+                )
+            )
+        return relationships
+
     @staticmethod
     def parse_process_guid(event):
         return event['_source']['process']['entity_id'].strip('{').strip('}')
@@ -65,7 +78,7 @@ class Parser(BaseParser):
 
     @staticmethod
     def parse_user(event):
-        return "%s\\%s" % (event['_source']['user']['domain'], event['_source']['user']['name'])
+        return '%s\\%s' % (event['_source']['user']['domain'], event['_source']['user']['name'])
 
     @staticmethod
     def parse_pid(event):
@@ -74,19 +87,6 @@ class Parser(BaseParser):
     @staticmethod
     def parse_process_name(event):
         return event['_source']['process']['name']
-
-    @classmethod
-    def parse_elasticsearch_results(cls, event):
-        elasticsearch_id = event["_id"]
-        relationships = []
-        for k, v in cls.flatten_dict(event["_source"]).items():
-            relationships.append(
-                Relationship(
-                    source=Fact(trait="elasticsearch.result.id", value=elasticsearch_id),
-                    target=Fact(trait=k, value=v if isinstance(v, str) else json.dumps(v)),
-                )
-            )
-        return relationships
 
     @staticmethod
     def flatten_dict(dict_obj):
@@ -101,3 +101,10 @@ class Parser(BaseParser):
                 new[parent] = obj
         _flatten(dict_obj)
         return new
+
+    @staticmethod
+    def _sanitize_fact_traits(trait):
+        special_chars = ('@', '"', '"', '[', ']', '\\', '/')
+        for c in special_chars:
+            trait = trait.replace(c, '')
+        return trait
