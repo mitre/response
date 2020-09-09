@@ -23,16 +23,16 @@ class Parser(BaseParser):
         # a time.
         if isinstance(loaded, dict):
             event = loaded
-            try:
-                for mp in self.mappers:
-                    match = self.parse_options[mp.target.split('.').pop()](event)
-                    if match:
-                        guid = self.parse_process_guid(event)
-                        relationships.append(Relationship(source=Fact(mp.source, guid),
-                                                          edge=mp.edge,
-                                                          target=Fact(mp.target, match)))
-            except Exception as e:
-                print(e)
+            for mp in self.mappers:
+                match = self.parse_options[mp.target.split('.').pop()](event)
+                if match:
+                    guid = self.parse_process_guid(event)
+                    relationships.append(Relationship(source=Fact(mp.source, guid),
+                                                      edge=mp.edge,
+                                                      target=Fact(mp.target, match)))
+
+            relationships.extend(self.parse_elasticsearch_results(event))
+
         return relationships
 
     @property
@@ -45,7 +45,6 @@ class Parser(BaseParser):
             pid=self.parse_pid,
             name=self.parse_process_name,
             parent_guid=self.parse_parent_process_guid,
-            result=self.parse_elasticsearch_result,
         )
 
     @staticmethod
@@ -76,6 +75,29 @@ class Parser(BaseParser):
     def parse_process_name(event):
         return event['_source']['process']['name']
 
+    @classmethod
+    def parse_elasticsearch_results(cls, event):
+        elasticsearch_id = event["_id"]
+        relationships = []
+        for k, v in cls.flatten_dict(event["_source"]).items():
+            relationships.append(
+                Relationship(
+                    source=Fact(trait="elasticsearch.result.id", value=elasticsearch_id),
+                    target=Fact(trait=k, value=v if isinstance(v, str) else json.dumps(v)),
+                )
+            )
+        return relationships
+
     @staticmethod
-    def parse_elasticsearch_result(event):
-        return json.dumps(event['_source'])
+    def flatten_dict(dict_obj):
+        new = {}
+
+        def _flatten(obj, parent="", sep="."):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    next_parent = parent + sep + str(k) if parent else k
+                    _flatten(v, parent=next_parent)
+            else:
+                new[parent] = obj
+        _flatten(dict_obj)
+        return new

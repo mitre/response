@@ -25,9 +25,6 @@
             - source: host.process.guid
               edge: has_interesting
               target: investigate.process.parent_guid
-            - source: host.process.guid
-              edge: from_elasticsearch
-              target: elasticsearch.sysmon.result
     linux:
       elasticsearch:
         *cmd
