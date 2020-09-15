@@ -56,6 +56,7 @@ class Parser(BaseParser):
                 Relationship(
                     source=Fact(trait='elasticsearch.result.id', value=elasticsearch_id),
                     target=Fact(trait=cls._sanitize_fact_traits(k), value=v if isinstance(v, str) else json.dumps(v)),
+                    edge='has_property'
                 )
             )
         return relationships
