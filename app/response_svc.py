@@ -24,7 +24,7 @@ async def handle_link_completed(socket, path, services):
     agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
 
     # Special processing for elasticsearch results
-    if link.executor == 'elasticsearch':
+    if link.ability.executor == 'elasticsearch':
         await services.get('response_svc').process_elasticsearch_results(operation, link)
 
     if agent:
