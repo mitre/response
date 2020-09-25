@@ -14,6 +14,27 @@ from app.objects.secondclass.c_result import Result
 from app.utility.base_service import BaseService
 
 
+async def process_elasticsearch_result(data, services):
+    operation = await services.get('app_svc').find_op_with_link(data['link_id'])
+    if hasattr(operation, 'chain'):
+        link = next(filter(lambda l: l.id == int(data['link_id']), operation.chain))
+        if link.ability.executor == 'elasticsearch':
+            await services.get('response_svc').process_elasticsearch_results(operation, link)
+
+
+async def handle_link_completed(socket, path, services):
+    data = json.loads(await socket.recv())
+    paw = data['agent']['paw']
+    data_svc = services.get('data_svc')
+
+    await process_elasticsearch_result(data, services)
+
+    agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
+    if agent:
+        pid = data['pid']
+        op_type = 'hidden' if BaseService.Access(data.get('access')) == BaseService.Access.HIDDEN else 'visible'
+        return await services.get('response_svc').respond_to_pid(pid, agent[0], op_type)
+
 async def handle_link_completed(socket, path, services):
     data = json.loads(await socket.recv())
     paw = data['agent']['paw']
