@@ -35,24 +35,6 @@ async def handle_link_completed(socket, path, services):
         op_type = 'hidden' if BaseService.Access(data.get('access')) == BaseService.Access.HIDDEN else 'visible'
         return await services.get('response_svc').respond_to_pid(pid, agent[0], op_type)
 
-async def handle_link_completed(socket, path, services):
-    data = json.loads(await socket.recv())
-    paw = data['agent']['paw']
-    data_svc = services.get('data_svc')
-
-    operation = await services.get('app_svc').find_op_with_link(data['link_id'])
-    link = next(filter(lambda l: l.id == int(data['link_id']), operation.chain))
-    agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
-
-    # Special processing for elasticsearch results
-    if link.ability.executor == 'elasticsearch':
-        await services.get('response_svc').process_elasticsearch_results(operation, link)
-
-    if agent:
-        pid = data['pid']
-        op_type = 'hidden' if BaseService.Access(data.get('access')) == BaseService.Access.HIDDEN else 'visible'
-        return await services.get('response_svc').respond_to_pid(pid, agent[0], op_type)
-
 
 class ResponseService(BaseService):
 
