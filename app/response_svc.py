@@ -27,7 +27,7 @@ async def handle_link_completed(socket, path, services):
     paw = data['agent']['paw']
     data_svc = services.get('data_svc')
 
-    await process_elasticsearch_result(data, services)
+    # await process_elasticsearch_result(data, services)
 
     agent = await data_svc.locate('agents', match=dict(paw=paw, access=data_svc.Access.RED))
     if agent:
