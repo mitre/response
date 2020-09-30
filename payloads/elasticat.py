@@ -87,6 +87,7 @@ class OperationLoop:
         beacon_resp = json.loads(self._decode_bytes(resp.text))
         self._profile['paw'] = beacon_resp['paw']
         self.sleep = beacon_resp['sleep']
+
         if enqueue_instructions:
             for instruction in json.loads(beacon_resp.get('instructions', [])):
                 self.instruction_queue.put(instruction)

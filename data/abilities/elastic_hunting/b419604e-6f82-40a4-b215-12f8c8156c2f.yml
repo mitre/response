@@ -1,7 +1,7 @@
 ---
-- id: 4b283acc-45c0-4de8-b0ac-ac0699e5ab95
-  name: Search for PowerShell ExecutionPolicy Bypass (elastic)
-  description: Search for Sysmon Event 1 powershell records with "ExecutionPolicy" and "Bypass"
+- id: b419604e-6f82-40a4-b215-12f8c8156c2f
+  name: Search for Parent Processes (elastic)
+  description: Search for Sysmon Event 1 records to discover parents of known processes.
   tactic: hunt
   technique:
     attack_id: x
@@ -10,7 +10,7 @@
     windows:
       elasticsearch: &cmd
         command: |
-          process.name:powershell.exe AND process.args:*Bypass* AND process.args:*ExecutionPolicy*
+          process.entity_id:\{#{investigate.process.parent_guid}\} AND winlog.event_id:1 AND winlog.provider_name:"Microsoft-Windows-Sysmon"
         parsers:
           plugins.response.app.parsers.ecs_sysmon:
             - source: host.process.guid
@@ -25,9 +25,6 @@
             - source: host.process.guid
               edge: has_interesting
               target: investigate.process.parent_guid
-            - source: host.process.guid
-              edge: has_interesting
-              target: investigate.process.guid
     linux:
       elasticsearch:
         *cmd
