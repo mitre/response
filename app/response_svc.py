@@ -63,7 +63,7 @@ class ResponseService(BaseService):
 
     @staticmethod
     async def register_handler(event_svc):
-        await event_svc.observe_event(handle_link_completed, exchange="link", queue='completed')
+        await event_svc.observe_event(handle_link_completed, exchange='link', queue='completed')
 
     async def respond_to_pid(self, pid, red_agent, op_type):
         available_agents = await self.get_available_agents(red_agent)
