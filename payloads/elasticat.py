@@ -10,12 +10,14 @@ from queue import Queue
 from base64 import b64encode, b64decode
 
 import requests
+import requests.auth
 
 
 class OperationLoop:
 
     def __init__(self, server, es_host='http://127.0.0.1:9200', index_pattern='*',
-                 result_size=10, group='blue', minutes_since=60, sleep=15):
+                 result_size=10, group='blue', minutes_since=60, sleep=15,
+                 user='', password=''):
         self.es_host = es_host
         self.index_pattern = index_pattern
         self.result_size = result_size
@@ -31,6 +33,12 @@ class OperationLoop:
             group=group
         )
 
+        self.user = user
+        self.password = password
+        self.auth = None
+        if self.user or self.password:
+            self.auth = requests.auth.HTTPBasicAuth(self.user, self.password)
+
     def get_profile(self):
         return copy.copy(self._profile)
 
@@ -42,16 +50,22 @@ class OperationLoop:
     def paw(self):
         return self._profile.get('paw', 'unknown')
 
+    def test_elastic_connection(self):
+        resp = requests.get('%s/_cat/health' % (self.es_host,), params=dict(format='json'), auth=self.auth)
+        resp.raise_for_status()
+        print("[*] Connection to Elasticsearch OK. %s" % resp.json())
+
     def execute_lucene_query(self, lucene_query_string):
         query_string = 'event.created:[now-%im TO now] AND %s' % (self.minutes_since, lucene_query_string)
         body = dict(query=dict(query_string=dict(query=query_string)))
         resp = requests.post('%s/%s/_search' % (self.es_host, self.index_pattern),
                              params=dict(size=self.result_size),
-                             json=body)
+                             json=body, auth=self.auth)
         resp.raise_for_status()
         return resp.json().get('hits', {}).get('hits', [])
 
     def start(self):
+        self.test_elastic_connection()
         while True:
             try:
                 print('[*] Sending beacon for %s' % (self.paw,))
@@ -121,9 +135,15 @@ if __name__ == '__main__':
                         help='Number of seconds to wait to check for new commands.')
     parser.add_argument('--result-size', default=10, type=int, dest='result_size',
                         help='The maximum number for results that will be returned per elasticsearch query.')
+    parser.add_argument('--elastic-user', default='', dest='elastic_user',
+                        help='User name for use when authenticating to elasticsarch.')
+    parser.add_argument('--elastic-password', default='', dest='elastic_password',
+                        help='Password for use when authenticating to elasticsarch.')
     args = parser.parse_args()
     try:
         OperationLoop(args.server, es_host=args.es_host, index_pattern=args.index, group=args.group,
-                      minutes_since=args.minutes_since, sleep=args.sleep, result_size=args.result_size).start()
+                      minutes_since=args.minutes_since, sleep=args.sleep, result_size=args.result_size,
+                      user=args.elastic_user, password=args.elastic_password).start()
     except Exception as e:
         print('[-] Caldera server not be accessible, or: %s' % e)
+        raise e
