@@ -8,6 +8,7 @@ import time
 import traceback
 from queue import Queue
 from base64 import b64encode, b64decode
+from dateutil import parser as date_parser
 
 import requests
 import requests.auth
@@ -17,10 +18,12 @@ class OperationLoop:
 
     def __init__(self, server, es_host='http://127.0.0.1:9200', index_pattern='*',
                  result_size=10, group='blue', minutes_since=60, sleep=15,
-                 user='', password=''):
+                 user='', password='', start_time=None, end_time='now'):
         self.es_host = es_host
         self.index_pattern = index_pattern
         self.result_size = result_size
+        self.start_time = start_time
+        self.end_time = end_time
         self.minutes_since = minutes_since
         self.sleep = sleep
         self.instruction_queue = Queue()
@@ -56,7 +59,11 @@ class OperationLoop:
         print("[*] Connection to Elasticsearch OK. %s" % resp.json())
 
     def execute_lucene_query(self, lucene_query_string):
-        query_string = 'event.created:[now-%im TO now] AND %s' % (self.minutes_since, lucene_query_string)
+        if self.start_time:
+            query_string = ('event.created:[%s TO ' + self.end_time + '] AND %s') % (self.start_time,
+                                                                                     lucene_query_string)
+        else:
+            query_string = 'event.created:[now-%im TO now] AND %s' % (self.minutes_since, lucene_query_string)
         body = dict(query=dict(query_string=dict(query=query_string)))
         resp = requests.post('%s/%s/_search' % (self.es_host, self.index_pattern),
                              params=dict(size=self.result_size),
@@ -66,6 +73,10 @@ class OperationLoop:
 
     def start(self):
         self.test_elastic_connection()
+        if self.start_time:
+            print("[*] Querying for events created from %s to %s" % (self.start_time, self.end_time))
+        else:
+            print("[*] Querying for events created %s minutes before now" % self.minutes_since)
         while True:
             try:
                 print('[*] Sending beacon for %s' % (self.paw,))
@@ -122,6 +133,18 @@ class OperationLoop:
         return str(b64encode(s.encode()), 'utf-8')
 
 
+def valid_date_format(s):
+    try:
+        if s == 'now':
+            return s
+        date = date_parser.parse(s)
+        if date:
+            return date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    except ValueError:
+        error_msg = 'supplied value "%s" is an invalid date.' % s
+        raise argparse.ArgumentTypeError(error_msg)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--server', default='http://127.0.0.1:8888', help='Base URL  Caldera server.')
@@ -129,6 +152,11 @@ if __name__ == '__main__':
                         help='Base URL of ElasticSearch.')
     parser.add_argument('--index', default='*', help='ElasticSearch index pattern to search over.')
     parser.add_argument('--group', default='blue')
+    parser.add_argument('--start-time', dest='start_time', default=None, type=valid_date_format,
+                        help='Date to start searching for events. If provided without an --end-time, the query will '
+                             'search for events created until now.')
+    parser.add_argument('--end-time', dest='end_time', default='now', type=valid_date_format,
+                        help='Date to stop searching for events. Must be accompanied by a --start-time.')
     parser.add_argument('--minutes-since', dest='minutes_since', default=60, type=int,
                         help='How many minutes back to search for events.')
     parser.add_argument('--sleep', default=15, type=int,
@@ -140,10 +168,13 @@ if __name__ == '__main__':
     parser.add_argument('--elastic-password', default='', dest='elastic_password',
                         help='Password for use when authenticating to elasticsarch.')
     args = parser.parse_args()
+    if args.start_time is None and args.end_time != 'now':
+        parser.error('--end-time cannot be used without --start-time')
     try:
         OperationLoop(args.server, es_host=args.es_host, index_pattern=args.index, group=args.group,
                       minutes_since=args.minutes_since, sleep=args.sleep, result_size=args.result_size,
-                      user=args.elastic_user, password=args.elastic_password).start()
+                      user=args.elastic_user, password=args.elastic_password, start_time=args.start_time,
+                      end_time=args.end_time).start()
     except Exception as e:
         print('[-] Caldera server not be accessible, or: %s' % e)
         raise e
