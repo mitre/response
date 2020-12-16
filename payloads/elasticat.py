@@ -158,7 +158,8 @@ if __name__ == '__main__':
     parser.add_argument('--end-time', dest='end_time', default='now', type=valid_date_format,
                         help='Date to stop searching for events. Must be accompanied by a --start-time.')
     parser.add_argument('--minutes-since', dest='minutes_since', default=60, type=int,
-                        help='How many minutes back to search for events.')
+                        help='How many minutes back to search for events. This argument will be ignored if --start-time'
+                             ' is provided.')
     parser.add_argument('--sleep', default=15, type=int,
                         help='Number of seconds to wait to check for new commands.')
     parser.add_argument('--result-size', default=10, type=int, dest='result_size',
