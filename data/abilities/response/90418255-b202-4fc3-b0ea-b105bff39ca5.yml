@@ -26,7 +26,6 @@
               target: host.process.parentguid
       cmd:
         command: |
-          set /A time_range = #{sysmon.time.range} * 60 * 1000;
           wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= #{sysmon.time.range}] and */EventData/Data[@Name='ProcessId']=#{host.process.id} or */EventData/Data[@Name='ParentProcessId']=#{host.process.id}" /f:text
         parsers:
           plugins.response.app.parsers.processguids:
