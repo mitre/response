@@ -13,6 +13,16 @@
         command: |
           $time_range = (Get-Date) - (New-TimeSpan -Seconds $(#{sysmon.time.range}/1000));
           Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$time_range; Id=1} | where -Property Message -Match '(?m)^ParentProcessId: 5596\b' | Format-List;
+        parsers:
+          plugins.response.app.parsers.childprocess:
+            - source: host.process.id
+              edge: has_childprocess
+              target: host.process.childid
       cmd:
         command: |
           wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= #{sysmon.time.range}] and */EventData/Data[@Name='ParentProcessId']=#{host.process.id} and Event[System[EventID=1]]" /f:text
+        parsers:
+          plugins.response.app.parsers.childprocess:
+            - source: host.process.id
+              edge: has_childprocess
+              target: host.process.childid
