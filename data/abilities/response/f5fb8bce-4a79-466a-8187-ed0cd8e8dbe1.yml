@@ -12,7 +12,7 @@
       psh:
         command: |
           $time_range = (Get-Date) - (New-TimeSpan -Seconds $(#{sysmon.time.range}/1000));
-          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$time_range; Id=1} | where -Property Message -Match '(?m)^ParentProcessId: 5596\b' | Format-List;
+          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$time_range; Id=1} | where -Property Message -Match '(?m)^ParentProcessId: #{host.process.id}\b' | Format-List;
         parsers:
           plugins.response.app.parsers.childprocess:
             - source: host.process.id

@@ -16,7 +16,7 @@ class Parser(BaseParser):
                 src_fact_value = [f.value for f in all_facts if f.trait == mp.source].pop()
                 r = Relationship(source=Fact(mp.source, src_fact_value),
                                  edge=mp.edge,
-                                 target=Fact(mp.target, match))
+                                 target=Fact(mp.target, match.strip()))
                 relationships.append(r)
                 all_facts.append(r.target)
         return relationships
