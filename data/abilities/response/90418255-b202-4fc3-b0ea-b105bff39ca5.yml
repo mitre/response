@@ -11,8 +11,8 @@
     windows:
       psh:
         command: |
-          $Yesterday = (Get-Date) - (New-TimeSpan -Day 1);
-          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$Yesterday;} | where -Property Message -Match '(?m)^[Parent]*ProcessId: #{host.process.id}\b' | Format-List;
+          $time_range = (Get-Date) - (New-TimeSpan -Seconds $(#{sysmon.time.range}/1000));
+          Get-WinEvent -FilterHashTable @{ Logname='Microsoft-Windows-Sysmon/Operational'; StartTime=$time_range;} | where -Property Message -Match '(?m)^[Parent]*ProcessId: #{host.process.id}\b' | Format-List;
         parsers:
           plugins.response.app.parsers.processguids:
             - source: host.process.id
@@ -26,7 +26,7 @@
               target: host.process.parentguid
       cmd:
         command: |
-          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= 86400000] and */EventData/Data[@Name='ProcessId']=#{host.process.id} or */EventData/Data[@Name='ParentProcessId']=#{host.process.id}" /f:text
+          wevtutil qe Microsoft-Windows-Sysmon/Operational /q:"*/System/TimeCreated[timediff(@SystemTime) <= #{sysmon.time.range}] and */EventData/Data[@Name='ProcessId']=#{host.process.id} or */EventData/Data[@Name='ParentProcessId']=#{host.process.id}" /f:text
         parsers:
           plugins.response.app.parsers.processguids:
             - source: host.process.id

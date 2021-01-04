@@ -45,6 +45,7 @@ class ResponseService(BaseService):
         self.agents = []
         self.adversary = None
         self.abilities = []
+        self.search_time_range = 300000
         self.ops = dict()
 
     @template('response.html')
@@ -123,7 +124,8 @@ class ResponseService(BaseService):
                 self.abilities.append(a)
 
     async def run_abilities_on_agent(self, blue_agent, red_agent_pid, original_pid):
-        facts = [Fact(trait='host.process.id', value=original_pid)]
+        facts = [Fact(trait='host.process.id', value=original_pid),
+                 Fact(trait='sysmon.time.range', value=self.sysmon_time_range)]
         links = []
         relationships = []
         for ability_id in self.abilities:
@@ -190,6 +192,7 @@ class ResponseService(BaseService):
     async def _apply_adversary_config(self):
         blue_adversary = self.get_config(prop='adversary', name='response')
         self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
+        self.sysmon_time_range = self.get_config(prop='search_time_range_msecs', name='response')
 
     async def _save_configurations(self):
         with open('plugins/response/conf/response.yml', 'w') as config:
