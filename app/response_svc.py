@@ -55,6 +55,10 @@ class ResponseService(BaseService):
         await self._apply_adversary_config()
         return dict(abilities=abilities, adversaries=adversaries, auto_response=self.adversary)
 
+    async def get_field(self, field_name):
+        await self._apply_adversary_config()
+        return self.__dict__.get(field_name, None)
+
     async def update_responder(self, request):
         data = dict(await request.json())
         self.set_config(name='response', prop='adversary', value=data['adversary_id'])
