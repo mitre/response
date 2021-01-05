@@ -1,4 +1,5 @@
 import json
+import logging
 
 from app.objects.secondclass.c_fact import Fact
 from app.objects.secondclass.c_relationship import Relationship
@@ -12,6 +13,8 @@ class Parser(BaseParser):
     JSON documents (REF: https://www.elastic.co/guide/en/ecs/current/ecs-field-reference.html).
     """
 
+    logger = logging.getLogger("ecs_parser")
+
     def parse(self, blob):
         relationships = []
         loaded = json.loads(blob)
@@ -24,12 +27,15 @@ class Parser(BaseParser):
         if isinstance(loaded, dict):
             event = loaded
             for mp in self.mappers:
-                match = self.parse_options[mp.target.split('.').pop()](event)
-                if match:
-                    guid = self.parse_process_guid(event)
-                    relationships.append(Relationship(source=Fact(mp.source, guid),
-                                                      edge=mp.edge,
-                                                      target=Fact(mp.target, match)))
+                try:
+                    match = self.parse_options[mp.target.split('.').pop()](event)
+                    if match:
+                        guid = self.parse_process_guid(event)
+                        relationships.append(Relationship(source=Fact(mp.source, guid),
+                                                          edge=mp.edge,
+                                                          target=Fact(mp.target, match)))
+                except Exception as e:
+                    self.logger.debug('Problem with mapper: %s - %s ' % (mp, e), exc_info=True)
 
             relationships.extend(self.parse_elasticsearch_results(event))
 
@@ -52,11 +58,23 @@ class Parser(BaseParser):
         elasticsearch_id = event['_id']
         relationships = []
         for k, v in cls.flatten_dict(event["_source"]).items():
+            try:
+                relationships.append(
+                    Relationship(
+                        source=Fact(trait='elasticsearch.result.id', value=elasticsearch_id),
+                        target=Fact(trait=cls._sanitize_fact_traits(k), value=v if isinstance(v, str) else json.dumps(v)),
+                        edge='has_property'
+                    )
+                )
+            except Exception as e:
+                cls.logger.debug(e, exc_info=True)
+        pid = cls.parse_pid(event)
+        if pid:
             relationships.append(
                 Relationship(
-                    source=Fact(trait='elasticsearch.result.id', value=elasticsearch_id),
-                    target=Fact(trait=cls._sanitize_fact_traits(k), value=v if isinstance(v, str) else json.dumps(v)),
-                    edge='has_property'
+                    source=Fact(trait='host.process.id', value=pid),
+                    edge=None,
+                    target=Fact(trait=None, value=None)
                 )
             )
         return relationships
@@ -83,7 +101,7 @@ class Parser(BaseParser):
 
     @staticmethod
     def parse_pid(event):
-        return event['_source']['process']['pid']
+        return event.get('_source', {}).get('process', {}).get('pid')
 
     @staticmethod
     def parse_process_name(event):
