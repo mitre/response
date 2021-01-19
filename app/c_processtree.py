@@ -38,6 +38,9 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
             self.guid_to_processnode_map[pid] = [processnode]
         self.guid_to_processnode_map[parent_guid].add_child(guid, link)
 
+    # def find_original_process(self, pid, guid=None):
+    #     # TODO: implement
+
     def store(self, ram):
         existing = self.retrieve(ram['processtree'], self.unique)
         if not existing:

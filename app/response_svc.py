@@ -131,7 +131,12 @@ class ResponseService(BaseService):
         relationships = []
         for ability_id in self.abilities:
             if ability_id == self.child_process_ability_id:
-                ability_facts, ability_links, ability_relationships = await self.find_child_processes(blue_agent, ability_id, original_pid)
+                # ability_facts, ability_links, ability_relationships = await self.find_child_processes(blue_agent, ability_id, original_pid)
+                ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent,
+                                                                                                      red_agent_pid,
+                                                                                                      ability_id, facts,
+                                                                                                      original_pid,
+                                                                                                      relationships)
             else:
                 ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships)
             links.extend(ability_links)
@@ -178,8 +183,8 @@ class ResponseService(BaseService):
         for rel in link.relationships:
             if rel.source and rel.edge == 'has_childprocess' and rel.target:
                 linknode = self.LinkNode(link)
-                parent =
-                children =
+                # parent =
+                # children =
 
     async def run_ability_on_agent(self, blue_agent, red_agent_pid, ability_id, agent_facts, original_pid, relationships):
         links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,

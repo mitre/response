@@ -22,7 +22,7 @@ async def enable(services):
 
 async def expansion(services):
     response_svc = services.get('response_svc')
-    response_svc.apply_adversary_config()
+    await response_svc.apply_adversary_config()
 
 
 def _register_agent(ability_id):
