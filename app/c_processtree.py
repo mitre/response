@@ -8,6 +8,7 @@ from plugins.response.app.c_processnode import ProcessNode, ProcessNodeSchema
 
 class ProcessTreeSchema(ma.Schema):
     id = ma.fields.Integer()
+    pid_to_guids_map = ma.fields.Dict(keys=ma.fields.Integer(), values=ma.fields.List(ma.fields.String()))
     guid_to_processnode_map = ma.fields.Dict(keys=ma.fields.String(), values=ma.fields.Nested(ProcessNodeSchema()))
 
     @ma.post_load()
@@ -23,9 +24,10 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
     def unique(self):
         return hash(self.id)
 
-    def __init__(self, id=None, guid_to_processnode_map=None):
+    def __init__(self, id=None, pid_to_guids_map=None, guid_to_processnode_map=None):
         super().__init__()
         self.id = id if id else randint(0, 999999)
+        self.pid_to_guids_map = pid_to_guids_map if pid_to_guids_map else dict()
         self.guid_to_processnode_map = guid_to_processnode_map if guid_to_processnode_map else dict()
 
     def add_processnode(self, guid, pid, link, parent_guid):

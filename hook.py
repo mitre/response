@@ -10,6 +10,7 @@ access = BaseWorld.Access.BLUE
 async def enable(services):
     BaseWorld.apply_config('response', BaseWorld.strip_yml('plugins/response/conf/response.yml')[0])
     response_svc = ResponseService(services)
+    await services.get('data_svc').apply('processtrees')
     app = services.get('app_svc').application
     app.router.add_route('GET', '/plugin/responder/gui', response_svc.splash)
     app.router.add_route('POST', '/plugin/responder/update', response_svc.update_responder)
@@ -22,7 +23,6 @@ async def enable(services):
 async def expansion(services):
     response_svc = services.get('response_svc')
     response_svc.apply_adversary_config()
-    response_svc.establish_process_tree()
 
 
 def _register_agent(ability_id):

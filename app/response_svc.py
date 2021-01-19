@@ -140,6 +140,7 @@ class ResponseService(BaseService):
         return facts, links
 
     async def find_child_processes(self, blue_agent, ability_id, original_pid, depth=5):
+        # TODO: modify to include process guids
         process_tree_links = []
         ability_facts = []
         ability_relationships = []
@@ -239,12 +240,6 @@ class ResponseService(BaseService):
         self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
         self.search_time_range = self.get_config(prop='search_time_range_msecs', name='response')
         self.child_process_ability_id = self.get_config(prop='child_process_abilty', name='response')
-
-    async def establish_process_tree(self):
-        auto_collect_ops = await self.data_svc.locate('operations', match=dict(adversary_id=self.adversary))
-        for op in auto_collect_ops:
-            for lnk in [link for link in op.chain if link.ability.ability_id == self.child_process_ability_id]:
-                await self.add_link_to_process_tree(lnk)
 
     async def _save_configurations(self):
         with open('plugins/response/conf/response.yml', 'w') as config:
