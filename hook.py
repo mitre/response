@@ -19,6 +19,12 @@ async def enable(services):
     await response_svc.register_handler(services.get('event_svc'))
 
 
+async def expansion(services):
+    response_svc = services.get('response_svc')
+    response_svc.apply_adversary_config()
+    response_svc.establish_process_tree()
+
+
 def _register_agent(ability_id):
     """
     Registers an agent with caldera -- the agent's launch commands and variations

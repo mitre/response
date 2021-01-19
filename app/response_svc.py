@@ -44,8 +44,9 @@ class ResponseService(BaseService):
         self.rest_svc = services.get('rest_svc')
         self.agents = []
         self.adversary = None
+        self.child_process_ability_id = None
         self.abilities = []
-        self.search_time_range = 300000
+        self.search_time_range = 600000
         self.ops = dict()
 
     @template('response.html')
@@ -129,11 +130,55 @@ class ResponseService(BaseService):
         links = []
         relationships = []
         for ability_id in self.abilities:
-            ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships)
+            if ability_id == self.child_process_ability_id:
+                ability_facts, ability_links, ability_relationships = await self.find_child_processes(blue_agent, ability_id, original_pid)
+            else:
+                ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships)
             links.extend(ability_links)
             facts.extend(ability_facts)
             relationships.extend(ability_relationships)
         return facts, links
+
+    async def find_child_processes(self, blue_agent, ability_id, original_pid, depth=5):
+        process_tree_links = []
+        ability_facts = []
+        ability_relationships = []
+        parent_pids = [original_pid]
+        child_pids = []
+        count = 1
+        while parent_pids and count <= depth:
+            for ppid in parent_pids:
+                facts = [Fact(trait='host.process.id', value=ppid),
+                         Fact(trait='sysmon.time.range', value=self.search_time_range)]
+                links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
+                                                                    obfuscator='plain-text', facts=facts)
+                child_pids, ability_facts, ability_relationships = \
+                    await self.process_child_process_links(links, child_pids, ability_facts, ability_relationships,
+                                                            original_pid)
+                process_tree_links.extend(links)
+            parent_pids = child_pids
+            child_pids = []
+            count += 1
+        return ability_facts, process_tree_links, ability_relationships
+
+    async def process_child_process_links(self, links, child_pids, ability_facts, ability_relationships, original_pid):
+        for link in links:
+            for rel in link.relationships:
+                if rel.source and rel.edge == 'has_childprocess' and rel.target:
+                    child_pids.append(rel.target)
+            ability_facts.extend(link.facts)
+            ability_relationships.extend(link.relationships)
+            link.pin = int(original_pid)
+            await self.add_link_to_process_tree(link)
+        return child_pids, ability_facts, ability_relationships
+
+    async def add_link_to_process_tree(self, link):
+        # TODO
+        for rel in link.relationships:
+            if rel.source and rel.edge == 'has_childprocess' and rel.target:
+                linknode = self.LinkNode(link)
+                parent =
+                children =
 
     async def run_ability_on_agent(self, blue_agent, red_agent_pid, ability_id, agent_facts, original_pid, relationships):
         links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
@@ -193,6 +238,13 @@ class ResponseService(BaseService):
         blue_adversary = self.get_config(prop='adversary', name='response')
         self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
         self.search_time_range = self.get_config(prop='search_time_range_msecs', name='response')
+        self.child_process_ability_id = self.get_config(prop='child_process_abilty', name='response')
+
+    async def establish_process_tree(self):
+        auto_collect_ops = await self.data_svc.locate('operations', match=dict(adversary_id=self.adversary))
+        for op in auto_collect_ops:
+            for lnk in [link for link in op.chain if link.ability.ability_id == self.child_process_ability_id]:
+                await self.add_link_to_process_tree(lnk)
 
     async def _save_configurations(self):
         with open('plugins/response/conf/response.yml', 'w') as config:
