@@ -12,6 +12,7 @@ from app.objects.c_operation import Operation
 from app.objects.c_source import Source
 from app.objects.secondclass.c_result import Result
 from app.utility.base_service import BaseService
+from plugins.response.app.c_processtree import ProcessTree
 
 
 async def process_elasticsearch_result(data, services):
@@ -118,7 +119,6 @@ class ResponseService(BaseService):
     async def refresh_blue_agents_abilities(self):
         self.agents = await self.data_svc.locate('agents', match=dict(access=self.Access.BLUE))
         await self.apply_adversary_config()
-
         self.abilities = []
         for a in self.adversary.atomic_ordering:
             if a not in self.abilities:
@@ -131,60 +131,75 @@ class ResponseService(BaseService):
         relationships = []
         for ability_id in self.abilities:
             if ability_id == self.child_process_ability_id:
-                # ability_facts, ability_links, ability_relationships = await self.find_child_processes(blue_agent, ability_id, original_pid)
-                ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent,
-                                                                                                      red_agent_pid,
-                                                                                                      ability_id, facts,
-                                                                                                      original_pid,
-                                                                                                      relationships)
+                depth = self.get_config(prop='child_process_recursion_depth', name='response')
+                if not depth:
+                    depth = 5
+                ability_facts, ability_links, ability_relationships = \
+                    await self.find_child_processes(blue_agent, ability_id, original_pid, relationships, depth)
             else:
-                ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships)
+                ability_facts, ability_links, ability_relationships = \
+                    await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid,
+                                                    relationships)
             links.extend(ability_links)
             facts.extend(ability_facts)
             relationships.extend(ability_relationships)
         return facts, links
 
-    async def find_child_processes(self, blue_agent, ability_id, original_pid, depth=5):
-        # TODO: modify to include process guids
+    async def find_child_processes(self, blue_agent, ability_id, original_pid, relationships, depth=5):
         process_tree_links = []
         ability_facts = []
         ability_relationships = []
-        parent_pids = [original_pid]
-        child_pids = []
+        parent_guids = [await self._get_original_guid(original_pid, relationships)]
+        child_guids = []
         count = 1
-        while parent_pids and count <= depth:
-            for ppid in parent_pids:
-                facts = [Fact(trait='host.process.id', value=ppid),
+        while parent_guids and count <= depth:
+            for pguid in parent_guids:
+                facts = [Fact(trait='host.process.guid', value=pguid),
                          Fact(trait='sysmon.time.range', value=self.search_time_range)]
                 links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
                                                                     obfuscator='plain-text', facts=facts)
-                child_pids, ability_facts, ability_relationships = \
-                    await self.process_child_process_links(links, child_pids, ability_facts, ability_relationships,
-                                                            original_pid)
+                await self.wait_for_link_completion(links, blue_agent)
+                for link in links:
+                    ability_facts.extend(link.facts)
+                    ability_relationships.extend(link.relationships)
+                    link.pin = int(original_pid)
+                child_guids = await self.process_child_process_links(links, child_guids)
                 process_tree_links.extend(links)
-            parent_pids = child_pids
-            child_pids = []
+            parent_guids = child_guids
+            child_guids = []
             count += 1
         return ability_facts, process_tree_links, ability_relationships
 
-    async def process_child_process_links(self, links, child_pids, ability_facts, ability_relationships, original_pid):
+    async def process_child_process_links(self, links, child_guids):
         for link in links:
             for rel in link.relationships:
-                if rel.source and rel.edge == 'has_childprocess' and rel.target:
-                    child_pids.append(rel.target)
-            ability_facts.extend(link.facts)
-            ability_relationships.extend(link.relationships)
-            link.pin = int(original_pid)
-            await self.add_link_to_process_tree(link)
-        return child_pids, ability_facts, ability_relationships
+                if rel.source and rel.edge == 'has_childprocess_guid' and rel.target:
+                    child_guids.append(rel.target)
+                    await self.add_link_to_process_tree(link)
+                    return child_guids
+        return child_guids
 
     async def add_link_to_process_tree(self, link):
-        # TODO
+        parent_guid = None
+        pid = None
+        guid = None
         for rel in link.relationships:
-            if rel.source and rel.edge == 'has_childprocess' and rel.target:
-                linknode = self.LinkNode(link)
-                # parent =
-                # children =
+            if rel.source and rel.source.trait == 'host.process.guid' and rel.edge == 'has_childprocess_id' and \
+                    rel.target and rel.target.trait == 'host.process.id':
+                if not parent_guid:
+                    parent_guid = rel.source.value
+                pid = int(rel.target.value.strip())
+            elif rel.source and rel.source.trait == 'host.process.guid' and rel.edge == 'has_childprocess_guid' and \
+                    rel.target and rel.target.trait == 'host.process.guid':
+                if not parent_guid:
+                    parent_guid = rel.source.value
+                guid = rel.target.value
+        processtree = await self.data_svc.locate('processtrees')
+        if not processtree:
+            processtree = ProcessTree()
+        else:
+            processtree = processtree[0]
+        processtree.add_processnode(guid, pid, link, parent_guid)
 
     async def run_ability_on_agent(self, blue_agent, red_agent_pid, ability_id, agent_facts, original_pid, relationships):
         links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
@@ -244,7 +259,7 @@ class ResponseService(BaseService):
         blue_adversary = self.get_config(prop='adversary', name='response')
         self.adversary = (await self.data_svc.locate('adversaries', match=dict(adversary_id=blue_adversary)))[0]
         self.search_time_range = self.get_config(prop='search_time_range_msecs', name='response')
-        self.child_process_ability_id = self.get_config(prop='child_process_abilty', name='response')
+        self.child_process_ability_id = self.get_config(prop='child_process_ability', name='response')
 
     async def _save_configurations(self):
         with open('plugins/response/conf/response.yml', 'w') as config:
@@ -276,3 +291,14 @@ class ResponseService(BaseService):
     def _is_red_agent_guid(relationships, red_pid, fact):
         red_guid = [r.target.value for r in relationships if r.source.value.strip() == red_pid].pop()
         return fact.value == red_guid
+
+    @staticmethod
+    async def _get_original_guid(original_pid, relationships):
+        source_trait = 'host.process.id'
+        edge = 'has_guid'
+        target_trait = 'host.process.guid'
+        for rel in relationships:
+            if rel.source.trait == source_trait and rel.source.value == original_pid and \
+                    rel.edge and rel.edge == edge and rel.target and rel.target.trait == target_trait:
+                return rel.target.value
+        return None
