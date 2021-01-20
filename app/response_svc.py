@@ -74,11 +74,11 @@ class ResponseService(BaseService):
         total_links = []
 
         for blue_agent in available_agents:
-            agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, str(red_agent.pid), pid)
+            agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, str(red_agent.pid), pid, op_type)
             total_facts.extend(agent_facts)
             total_links.extend(agent_links)
 
-        await self.save_to_operation(total_facts, total_links, op_type)
+        # await self.save_to_operation(total_links, op_type)
 
     async def process_elasticsearch_results(self, operation, link):
         file_svc = self.get_service('file_svc')
@@ -123,21 +123,22 @@ class ResponseService(BaseService):
             if a not in self.abilities:
                 self.abilities.append(a)
 
-    async def run_abilities_on_agent(self, blue_agent, red_agent_pid, original_pid):
+    async def run_abilities_on_agent(self, blue_agent, red_agent_pid, original_pid, op_type):
         facts = [Fact(trait='host.process.id', value=original_pid),
                  Fact(trait='sysmon.time.range', value=self.search_time_range)]
         links = []
         relationships = []
         for ability_id in self.abilities:
-            ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships)
+            ability_facts, ability_links, ability_relationships = await self.run_ability_on_agent(blue_agent, red_agent_pid, ability_id, facts, original_pid, relationships, op_type)
             links.extend(ability_links)
             facts.extend(ability_facts)
             relationships.extend(ability_relationships)
         return facts, links
 
-    async def run_ability_on_agent(self, blue_agent, red_agent_pid, ability_id, agent_facts, original_pid, relationships):
+    async def run_ability_on_agent(self, blue_agent, red_agent_pid, ability_id, agent_facts, original_pid, relationships, op_type):
         links = await self.rest_svc.task_agent_with_ability(paw=blue_agent.paw, ability_id=ability_id,
                                                             obfuscator='plain-text', facts=agent_facts)
+        await self.save_to_operation(links, op_type)
         await self.wait_for_link_completion(links, blue_agent)
         ability_facts = []
         ability_relationships = []
@@ -158,14 +159,14 @@ class ResponseService(BaseService):
                     break
 
     @staticmethod
-    async def create_fact_source(facts):
+    async def create_fact_source():
         source_id = str(uuid.uuid4())
         source_name = 'blue-pid-{}'.format(source_id)
-        return Source(id=source_id, name=source_name, facts=facts)
+        return Source(id=source_id, name=source_name, facts=[])
 
-    async def save_to_operation(self, facts, links, op_type):
+    async def save_to_operation(self, links, op_type):
         if op_type not in self.ops or await self.ops[op_type].is_finished():
-            source = await self.create_fact_source(facts)
+            source = await self.create_fact_source()
             await self.create_operation(links=links, source=source, op_type=op_type)
         else:
             await self.update_operation(links, op_type)
