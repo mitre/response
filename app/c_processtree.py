@@ -8,8 +8,12 @@ from plugins.response.app.c_processnode import ProcessNode, ProcessNodeSchema
 
 class ProcessTreeSchema(ma.Schema):
     id = ma.fields.Integer()
-    pid_to_guids_map = ma.fields.Dict(keys=ma.fields.Integer(), values=ma.fields.List(ma.fields.String()))
-    guid_to_processnode_map = ma.fields.Dict(keys=ma.fields.String(), values=ma.fields.Nested(ProcessNodeSchema()))
+    pid_to_guids_map = ma.fields.Dict(keys=ma.fields.String(),
+                                      values=ma.fields.Dict(keys=ma.fields.Integer(),
+                                                            values=ma.fields.List(ma.fields.String())))
+    guid_to_processnode_map = ma.fields.Dict(keys=ma.fields.String(),
+                                             values=ma.fields.Dict(keys=ma.fields.String(),
+                                                                   values=ma.fields.Nested(ProcessNodeSchema())))
 
     @ma.post_load()
     def build_processtree(self, data, **_):
@@ -32,18 +36,55 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
 
     def add_processnode(self, guid, pid, link, parent_guid):
         processnode = ProcessNode(pid=pid, link=link, parent_guid=parent_guid)
-        if guid in self.guid_to_processnode_map.keys():
-            self.guid_to_processnode_map[guid].append(processnode)
-        else:
-            self.guid_to_processnode_map[pid] = [processnode]
-        self.guid_to_processnode_map[parent_guid].add_child(guid, link)
 
-    # def find_original_process(self, pid, guid=None):
-    #     # TODO: implement
+        if link.host not in self.guid_to_processnode_map:
+            self.guid_to_processnode_map[link.host] = dict()
+
+        if guid in self.guid_to_processnode_map[link.host]:
+            self.guid_to_processnode_map[link.host][guid].append(processnode)
+        else:
+            self.guid_to_processnode_map[link.host][guid] = [processnode]
+
+        if link.host not in self.pid_to_guids_map:
+            self.pid_to_guids_map[link.host] = dict()
+
+        if pid in self.pid_to_guids_map[link.host]:
+            self.pid_to_guids_map[link.host][pid].append(guid)
+        else:
+            self.pid_to_guids_map[link.host][pid] = [guid]
+
+        self.guid_to_processnode_map[link.host][parent_guid].add_child(guid, link)
+
+    async def find_original_process_by_pid(self, pid, host):
+        # TODO: caller needs to add check for multiple pids, verify which pid/link is intended
+        original_guids = []
+        if host in self.pid_to_guids_map and pid in self.pid_to_guids_map[host]:
+            guids = self.pid_to_guids_map[host][pid]
+            for guid in guids:
+                original_guid = guid
+                parent_guid = await self.find_parent_guid(guid, host)
+                while parent_guid is not None:
+                    original_guid = parent_guid
+                    parent_guid = await self.find_parent_guid(guid, host)
+                original_guids.append(original_guid)
+        return await self.convert_guids_to_pids(original_guids, host)
+
+    async def find_parent_guid(self, guid, host):
+        if host in self.guid_to_processnode_map and guid in self.guid_to_processnode_map[host]:
+            return self.guid_to_processnode_map[host][guid].parent_guid
+        return None
+
+    async def convert_guids_to_pids(self, guids, host):
+        pids = []
+        for guid in guids:
+            for pid in self.pid_to_guids_map[host]:
+                if guid in self.pid_to_guids_map[host][pid]:
+                    pids.append(pid)
+        return pids
 
     def store(self, ram):
-        existing = self.retrieve(ram['processtree'], self.unique)
+        existing = self.retrieve(ram['processtrees'], self.unique)
         if not existing:
-            ram['processtree'].append(self)
-            return self.retrieve(ram['processtree'], self.unique)
+            ram['processtrees'].append(self)
+            return self.retrieve(ram['processtrees'], self.unique)
         return existing

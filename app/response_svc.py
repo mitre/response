@@ -197,6 +197,7 @@ class ResponseService(BaseService):
         processtree = await self.data_svc.locate('processtrees')
         if not processtree:
             processtree = ProcessTree()
+            await self.data_svc.store(processtree)
         else:
             processtree = processtree[0]
         processtree.add_processnode(guid, pid, link, parent_guid)
