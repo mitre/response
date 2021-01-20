@@ -70,6 +70,11 @@ class ResponseService(BaseService):
         available_agents = await self.get_available_agents(red_agent)
         if not available_agents:
             return
+
+        if op_type not in self.ops or await self.ops[op_type].is_finished():
+            source = await self.create_fact_source()
+            await self.create_operation(source=source, op_type=op_type)
+
         total_facts = []
         total_links = []
 
@@ -77,8 +82,6 @@ class ResponseService(BaseService):
             agent_facts, agent_links = await self.run_abilities_on_agent(blue_agent, str(red_agent.pid), pid, op_type)
             total_facts.extend(agent_facts)
             total_links.extend(agent_links)
-
-        # await self.save_to_operation(total_links, op_type)
 
     async def process_elasticsearch_results(self, operation, link):
         file_svc = self.get_service('file_svc')
@@ -165,14 +168,10 @@ class ResponseService(BaseService):
         return Source(id=source_id, name=source_name, facts=[])
 
     async def save_to_operation(self, links, op_type):
-        if op_type not in self.ops or await self.ops[op_type].is_finished():
-            source = await self.create_fact_source()
-            await self.create_operation(links=links, source=source, op_type=op_type)
-        else:
-            await self.update_operation(links, op_type)
+        await self.update_operation(links, op_type)
         await self.get_service('data_svc').store(self.ops[op_type])
 
-    async def create_operation(self, links, source, op_type):
+    async def create_operation(self, source, op_type):
         planner = (await self.get_service('data_svc').locate('planners', match=dict(name='batch')))[0]
         await self.get_service('data_svc').store(source)
         blue_op_name = self.get_config(prop='op_name', name='response')
@@ -183,7 +182,6 @@ class ResponseService(BaseService):
         obj = await self.get_service('data_svc').locate('objectives', match=dict(name='default'))
         self.ops[op_type].objective = deepcopy(obj[0])
         self.ops[op_type].set_start_details()
-        await self.update_operation(links, op_type)
 
     async def update_operation(self, links, op_type):
         for link in links:
