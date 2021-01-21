@@ -53,17 +53,16 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
         if parent_guid:
             self.guid_to_processnode_map[link.host][parent_guid].add_child(guid, link)
 
-    async def find_original_process_by_pid(self, pid, host):
-        # TODO: caller needs to add check for multiple pids, verify which pid/link is intended
+    async def find_original_processes_by_pid(self, pid, host):
         original_guids = []
         if host in self.pid_to_guids_map and pid in self.pid_to_guids_map[host]:
             guids = self.pid_to_guids_map[host][pid]
             for guid in guids:
                 original_guid = guid
-                parent_guid = await self.find_parent_guid(guid, host)
+                parent_guid = await self.find_parent_guid(original_guid, host)
                 while parent_guid is not None:
                     original_guid = parent_guid
-                    parent_guid = await self.find_parent_guid(guid, host)
+                    parent_guid = await self.find_parent_guid(original_guid, host)
                 original_guids.append(original_guid)
         return await self.convert_guids_to_pids(original_guids, host)
 
