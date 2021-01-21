@@ -40,10 +40,7 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
         if link.host not in self.guid_to_processnode_map:
             self.guid_to_processnode_map[link.host] = dict()
 
-        if guid in self.guid_to_processnode_map[link.host]:
-            self.guid_to_processnode_map[link.host][guid].append(processnode)
-        else:
-            self.guid_to_processnode_map[link.host][guid] = [processnode]
+        self.guid_to_processnode_map[link.host][guid] = processnode
 
         if link.host not in self.pid_to_guids_map:
             self.pid_to_guids_map[link.host] = dict()
@@ -53,7 +50,8 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
         else:
             self.pid_to_guids_map[link.host][pid] = [guid]
 
-        self.guid_to_processnode_map[link.host][parent_guid].add_child(guid, link)
+        if parent_guid:
+            self.guid_to_processnode_map[link.host][parent_guid].add_child(guid, link)
 
     async def find_original_process_by_pid(self, pid, host):
         # TODO: caller needs to add check for multiple pids, verify which pid/link is intended
