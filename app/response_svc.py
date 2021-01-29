@@ -199,7 +199,7 @@ class ResponseService(BaseService):
             await self.data_svc.store(processtree)
         else:
             processtree = processtree[0]
-        processtree.add_processnode(guid, pid, link, parent_guid)
+        await processtree.add_processnode(guid, pid, link, parent_guid)
 
     @staticmethod
     async def get_info_from_top_level_process_link(link):

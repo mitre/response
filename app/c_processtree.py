@@ -34,7 +34,7 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
         self.pid_to_guids_map = pid_to_guids_map if pid_to_guids_map else dict()
         self.guid_to_processnode_map = guid_to_processnode_map if guid_to_processnode_map else dict()
 
-    def add_processnode(self, guid, pid, link, parent_guid):
+    async def add_processnode(self, guid, pid, link, parent_guid):
         processnode = ProcessNode(pid=pid, link=link, parent_guid=parent_guid)
 
         if link.host not in self.guid_to_processnode_map:
