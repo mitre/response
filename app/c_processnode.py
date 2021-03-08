@@ -16,6 +16,9 @@ class ProcessNodeSchema(ma.Schema):
 
 
 class ProcessNode(BaseObject):
+    """
+    ProcessNodes are used within ProcessTrees to represent processes and their parent/child relationships.
+    """
 
     def __init__(self, pid, link, parent_guid=None, child_guids=None):
         super().__init__()

@@ -17,6 +17,12 @@ class ProcessTreeSchema(ma.Schema):
 
 
 class ProcessTree(FirstClassObjectInterface, BaseObject):
+    """
+    This data structure is used to track child processes of abilities run by the red team.
+    Each ProcessTree is unique to a host to ensure that processes aren't being incorrectly linked across hosts.
+    As Windows allows the reuse of PIDs, processes are uniquely identified within the ProcessTree using the matching
+    Sysmon GUID for the process.
+    """
 
     schema = ProcessTreeSchema()
 
@@ -32,6 +38,11 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
         self.guid_to_processnode_map = guid_to_processnode_map if guid_to_processnode_map else dict()
 
     async def add_processnode(self, guid, pid, link, parent_guid=None):
+        """
+        ProcessNodes are used to represent processes and their parent/child relationships.
+        When the Child Process Ability is run and produces a process as a result, the process is added as a ProcessNode,
+        and the parent/child relationships of that ProcessNode and related ProcessNodes are updated accordingly.
+        """
         processnode = ProcessNode(pid=pid, link=link, parent_guid=parent_guid)
         self.guid_to_processnode_map[guid] = processnode
 
@@ -44,6 +55,12 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
             self.guid_to_processnode_map[parent_guid].add_child(guid, link)
 
     async def find_original_processes_by_pid(self, pid):
+        """
+        This method takes in a PID and returns the top-level (parent-most/eldest/original) PID.
+        As Windows allows for PIDs to be repeated, this method may return multiple top-level PIDs.
+        In the case of multiple PIDs being returned, it is up to the caller/user to determine which of the returned PIDs
+        is the desired one.
+        """
         original_guids = []
         if pid in self.pid_to_guids_map:
             guids = self.pid_to_guids_map[pid]
