@@ -8,12 +8,8 @@ from plugins.response.app.c_processnode import ProcessNode, ProcessNodeSchema
 
 class ProcessTreeSchema(ma.Schema):
     id = ma.fields.Integer()
-    pid_to_guids_map = ma.fields.Dict(keys=ma.fields.String(),
-                                      values=ma.fields.Dict(keys=ma.fields.Integer(),
-                                                            values=ma.fields.List(ma.fields.String())))
-    guid_to_processnode_map = ma.fields.Dict(keys=ma.fields.String(),
-                                             values=ma.fields.Dict(keys=ma.fields.String(),
-                                                                   values=ma.fields.Nested(ProcessNodeSchema())))
+    pid_to_guids_map = ma.fields.Dict(keys=ma.fields.Integer(), values=ma.fields.List(ma.fields.String()))
+    guid_to_processnode_map = ma.fields.Dict(keys=ma.fields.String(), values=ma.fields.Nested(ProcessNodeSchema()))
 
     @ma.post_load()
     def build_processtree(self, data, **_):
@@ -26,56 +22,51 @@ class ProcessTree(FirstClassObjectInterface, BaseObject):
 
     @property
     def unique(self):
-        return hash(self.id)
+        return self.host + str(self.ptree_id)
 
-    def __init__(self, id=None, pid_to_guids_map=None, guid_to_processnode_map=None):
+    def __init__(self, host, ptree_id=None, pid_to_guids_map=None, guid_to_processnode_map=None):
         super().__init__()
-        self.id = id if id else randint(0, 999999)
+        self.ptree_id = ptree_id if ptree_id else randint(0, 999999)
+        self.host = host
         self.pid_to_guids_map = pid_to_guids_map if pid_to_guids_map else dict()
         self.guid_to_processnode_map = guid_to_processnode_map if guid_to_processnode_map else dict()
 
     async def add_processnode(self, guid, pid, link, parent_guid):
         processnode = ProcessNode(pid=pid, link=link, parent_guid=parent_guid)
 
-        if link.host not in self.guid_to_processnode_map:
-            self.guid_to_processnode_map[link.host] = dict()
+        self.guid_to_processnode_map[guid] = processnode
 
-        self.guid_to_processnode_map[link.host][guid] = processnode
-
-        if link.host not in self.pid_to_guids_map:
-            self.pid_to_guids_map[link.host] = dict()
-
-        if pid in self.pid_to_guids_map[link.host]:
-            self.pid_to_guids_map[link.host][pid].append(guid)
+        if pid in self.pid_to_guids_map:
+            self.pid_to_guids_map[pid].append(guid)
         else:
-            self.pid_to_guids_map[link.host][pid] = [guid]
+            self.pid_to_guids_map[pid] = [guid]
 
         if parent_guid:
-            self.guid_to_processnode_map[link.host][parent_guid].add_child(guid, link)
+            self.guid_to_processnode_map[parent_guid].add_child(guid, link)
 
-    async def find_original_processes_by_pid(self, pid, host):
+    async def find_original_processes_by_pid(self, pid):
         original_guids = []
-        if host in self.pid_to_guids_map and pid in self.pid_to_guids_map[host]:
-            guids = self.pid_to_guids_map[host][pid]
+        if pid in self.pid_to_guids_map:
+            guids = self.pid_to_guids_map[pid]
             for guid in guids:
                 original_guid = guid
-                parent_guid = await self.find_parent_guid(original_guid, host)
+                parent_guid = await self.find_parent_guid(original_guid)
                 while parent_guid is not None:
                     original_guid = parent_guid
-                    parent_guid = await self.find_parent_guid(original_guid, host)
+                    parent_guid = await self.find_parent_guid(original_guid)
                 original_guids.append(original_guid)
-        return await self.convert_guids_to_pids(original_guids, host)
+        return await self.convert_guids_to_pids(original_guids)
 
-    async def find_parent_guid(self, guid, host):
-        if host in self.guid_to_processnode_map and guid in self.guid_to_processnode_map[host]:
-            return self.guid_to_processnode_map[host][guid].parent_guid
+    async def find_parent_guid(self, guid):
+        if guid in self.guid_to_processnode_map:
+            return self.guid_to_processnode_map[guid].parent_guid
         return None
 
-    async def convert_guids_to_pids(self, guids, host):
+    async def convert_guids_to_pids(self, guids):
         pids = []
         for guid in guids:
-            for pid in self.pid_to_guids_map[host]:
-                if guid in self.pid_to_guids_map[host][pid]:
+            for pid in self.pid_to_guids_map:
+                if guid in self.pid_to_guids_map[pid]:
                     pids.append(pid)
         return pids
 

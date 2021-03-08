@@ -193,11 +193,12 @@ class ResponseService(BaseService):
             pid, guid, parent_guid = await self.get_info_from_top_level_process_link(link)
         else:
             pid, guid, parent_guid = await self.get_info_from_child_process_link(link)
-        processtree = await self.data_svc.locate('processtrees')
+        processtree = await self.data_svc.locate('processtrees', match=dict(host=link.host))
         if not processtree:
-            processtree = ProcessTree()
+            processtree = ProcessTree(link.host)
             await self.data_svc.store(processtree)
         else:
+            # we expect only 1 processtree per host
             processtree = processtree[0]
         await processtree.add_processnode(guid, pid, link, parent_guid)
 
