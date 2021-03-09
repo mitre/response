@@ -24,14 +24,19 @@ class Parser(BaseParser):
     @property
     def parse_options(self):
         return dict(
+            id=self.parse_id,
             guid=self.parse_guid,
             parentid=self.parse_parentid,
             parentguid=self.parse_parentguid
         )
 
     @staticmethod
+    def parse_id(blob):
+        return re.findall(r'\bProcessId: (.*)', blob, re.IGNORECASE)
+
+    @staticmethod
     def parse_guid(blob):
-        return re.findall(r'\bProcessGuid: {(.*)}', blob, re.IGNORECASE)
+        return re.findall(r'\bProcessGuid:\W+{(.*)}', blob, re.IGNORECASE)
 
     @staticmethod
     def parse_parentid(blob):
@@ -39,4 +44,4 @@ class Parser(BaseParser):
 
     @staticmethod
     def parse_parentguid(blob):
-        return re.findall(r'\bParentProcessGuid: {(.*)}', blob, re.IGNORECASE)
+        return re.findall(r'\bParentProcessGuid:\W+{(.*)}', blob, re.IGNORECASE)
