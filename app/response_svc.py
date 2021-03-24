@@ -18,7 +18,7 @@ from plugins.response.app.c_processtree import ProcessTree
 async def process_elasticsearch_result(data, services):
     operation = await services.get('app_svc').find_op_with_link(data['link_id'])
     if hasattr(operation, 'chain'):
-        link = next(filter(lambda l: l.id == int(data['link_id']), operation.chain))
+        link = next(filter(lambda l: l.id == data['link_id'], operation.chain))
         if link.ability.executor == 'elasticsearch':
             await services.get('response_svc').process_elasticsearch_results(operation, link)
 
@@ -89,7 +89,7 @@ class ResponseService(BaseService):
     async def process_elasticsearch_results(self, operation, link):
         file_svc = self.get_service('file_svc')
         contact_svc = self.get_service('contact_svc')
-        link_output = BaseService.decode_bytes(file_svc.read_result_file(str(link.id)))
+        link_output = BaseService.decode_bytes(file_svc.read_result_file(link.id))
         loaded_output = json.loads(link_output)
         for result in loaded_output:
 
@@ -103,7 +103,7 @@ class ResponseService(BaseService):
 
             # Add result for new link
             new_result = Result(
-                id=str(new_link.id),
+                id=new_link.id,
                 output=BaseService.encode_string(json.dumps(result, indent=4)),
                 pid=str(link.pid),
                 status=str(link.status)
