@@ -19,7 +19,7 @@ async def process_elasticsearch_result(data, services):
     operation = await services.get('app_svc').find_op_with_link(data['link_id'])
     if hasattr(operation, 'chain'):
         link = next(filter(lambda l: l.id == data['link_id'], operation.chain))
-        if link.ability.executor == 'elasticsearch':
+        if link.executor.name == 'elasticsearch':
             await services.get('response_svc').process_elasticsearch_results(operation, link)
 
 
