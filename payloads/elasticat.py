@@ -1,5 +1,6 @@
 import argparse
 import copy
+import datetime
 import json
 import os
 import platform
@@ -65,11 +66,12 @@ class OperationLoop:
         else:
             query_string = 'event.created:[now-%im TO now] AND %s' % (self.minutes_since, lucene_query_string)
         body = dict(query=dict(query_string=dict(query=query_string)))
+        execution_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         resp = requests.post('%s/%s/_search' % (self.es_host, self.index_pattern),
                              params=dict(size=self.result_size),
                              json=body, auth=self.auth)
         resp.raise_for_status()
-        return resp.json().get('hits', {}).get('hits', [])
+        return resp.json().get('hits', {}).get('hits', []), execution_timestamp
 
     def start(self):
         self.test_elastic_connection()
@@ -121,8 +123,8 @@ class OperationLoop:
     def _execute_instruction(self, i):
         print('[+] Running instruction: %s' % i['id'])
         query = self._decode_bytes(i['command'])
-        results = self.execute_lucene_query(query)
-        return dict(output=self._encode_string(json.dumps(results)), pid=os.getpid(), status=0, id=i['id']), i['sleep']
+        results, execution_timestamp = self.execute_lucene_query(query)
+        return dict(output=self._encode_string(json.dumps(results)), pid=os.getpid(), status=0, id=i['id'], agent_reported_time=execution_timestamp), i['sleep']
 
     @staticmethod
     def _decode_bytes(s):
