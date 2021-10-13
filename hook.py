@@ -17,7 +17,8 @@ async def enable(services):
 
     _register_agent('1837b43e-4fff-46b2-a604-a602f7540469')  # Elasticat agent
 
-    await response_svc.register_handler(services.get('event_svc'))
+    if BaseWorld.get_config('auto_operation_enable', 'response'):
+        await response_svc.register_handler(services.get('event_svc'))
 
 
 async def expansion(services):
