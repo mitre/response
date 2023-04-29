@@ -7,7 +7,7 @@
     name: x
   repeatable: False
   platforms:
-    linux:
+    freebsd,linux:
       sh:
         command: |
           cp -f /tmp/sensitive_file_backups/#{file.backup.name} #{file.sensitive.path}
