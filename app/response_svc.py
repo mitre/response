@@ -65,6 +65,22 @@ class ResponseService(BaseService):
         await self._save_configurations()
         return web.json_response('complete')
 
+    async def adversaries(self, request):
+        adversaries = [a for a in await self.data_svc.locate('adversaries') if await a.which_plugin() == 'response']
+        await self.apply_adversary_config()
+        res = []
+        for adv in adversaries:
+            res.append({"adversary_id": adv.adversary_id, "name": adv.name})
+        return web.json_response(res)
+
+    async def responseAbilities(self, request):
+        abilities = [a for a in await self.data_svc.locate('abilities') if await a.which_plugin() == 'response']
+        await self.apply_adversary_config()
+        res = []
+        for ability in abilities:
+            res.append({"ability_id": ability.ability_id, "name": ability.name})
+        return web.json_response(res)
+
     @staticmethod
     async def register_handler(event_svc):
         await event_svc.observe_event(handle_link_completed, exchange='link', queue='completed')
