@@ -14,8 +14,8 @@ async def enable(services):
     app = services.get('app_svc').application
     app.router.add_route('GET', '/plugin/responder/gui', response_svc.splash)
     app.router.add_route('POST', '/plugin/responder/update', response_svc.update_responder)
-    app.router.add_route('GET', '/plugin/responder/adversaries', response_svc.adversaries)
-    app.router.add_route('GET', '/plugin/responder/abilities', response_svc.responseAbilities)
+    app.router.add_route('GET', '/plugin/responder/adversaries', response_svc.response_adversaries)
+    app.router.add_route('GET', '/plugin/responder/abilities', response_svc.response_abilities)
 
     _register_agent('1837b43e-4fff-46b2-a604-a602f7540469')  # Elasticat agent
 
