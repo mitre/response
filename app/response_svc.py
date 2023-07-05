@@ -70,7 +70,7 @@ class ResponseService(BaseService):
         await self.apply_adversary_config()
         res = []
         for adv in adversaries:
-            res.append({"adversary_id": adv.adversary_id, "name": adv.name})
+            res.append(dict(adversary_id=adv.adversary_id, name=adv.name))
         return web.json_response(res)
 
     async def response_abilities(self, request):
@@ -78,7 +78,7 @@ class ResponseService(BaseService):
         await self.apply_adversary_config()
         res = []
         for ability in abilities:
-            res.append({"ability_id": ability.ability_id, "name": ability.name})
+            res.append(dict(ability_id=ability.ability_id, name=ability.name))
         return web.json_response(res)
 
     @staticmethod
