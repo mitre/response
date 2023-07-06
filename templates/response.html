@@ -47,7 +47,7 @@ function alpineResponse() {
     getAdversaries() {
       apiV2('GET', '/plugin/responder/adversaries').then((adversaries) => {
         this.adversaries = adversaries;
-        this.selectedAdversaryID = adversaries[0].adversary_id;
+        this.selectedAdversaryID = "{{auto_response.adversary_id}}";
         return apiV2('GET', '/plugin/responder/abilities').then((abilities) => {
           this.abilities = abilities;
         });

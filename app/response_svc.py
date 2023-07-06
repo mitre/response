@@ -53,10 +53,8 @@ class ResponseService(BaseService):
 
     @template('response.html')
     async def splash(self, request):
-        abilities = [a for a in await self.data_svc.locate('abilities') if await a.which_plugin() == 'response']
-        adversaries = [a for a in await self.data_svc.locate('adversaries') if await a.which_plugin() == 'response']
         await self.apply_adversary_config()
-        return dict(abilities=abilities, adversaries=adversaries, auto_response=self.adversary)
+        return dict(auto_response=self.adversary)
 
     async def update_responder(self, request):
         data = dict(await request.json())
