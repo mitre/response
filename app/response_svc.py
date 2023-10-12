@@ -66,9 +66,10 @@ class ResponseService(BaseService):
     async def response_adversaries(self, request):
         adversaries = [a for a in await self.data_svc.locate('adversaries') if await a.which_plugin() == 'response']
         await self.apply_adversary_config()
-        res = []
+        adversary_list = []
         for adv in adversaries:
-            res.append(dict(adversary_id=adv.adversary_id, name=adv.name))
+            adversary_list.append(dict(adversary_id=adv.adversary_id, name=adv.name))
+        res = dict(adversaries=adversary_list, auto_response=self.adversary.adversary_id if self.adversary else None)
         return web.json_response(res)
 
     async def response_abilities(self, request):
