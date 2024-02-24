@@ -9,7 +9,7 @@
     name: x
   repeatable: True
   platforms:
-    linux:
+    freebsd,linux:
       sh:
         command: |
           find /var/mail -type f -exec grep "From.*@.*\..*" {} \; | cut -d'@' -f2 | cut -d' ' -f1 | sort --uniq
