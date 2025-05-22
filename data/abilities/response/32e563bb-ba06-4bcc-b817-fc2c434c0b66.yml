@@ -4,8 +4,8 @@
   description: Removes newly added cron jobs
   tactic: response
   technique:
-    attack_id: x
-    name: x
+    attack_id: T1053.003
+    name: "Scheduled Task/Job: Cron"
   platforms:
     linux:
       sh:

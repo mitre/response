@@ -4,8 +4,8 @@
   description: Checks to see if a new (unauthorized) cron job has been added
   tactic: detection
   technique:
-    attack_id: x
-    name: x
+    attack_id: T1053.003
+    name: "Scheduled Task/Job: Cron"
   repeatable: True
   platforms:
     linux:

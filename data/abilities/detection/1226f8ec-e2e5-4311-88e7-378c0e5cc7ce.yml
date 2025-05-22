@@ -5,8 +5,8 @@
   description: Finds suspicious URLs in received mail
   tactic: detection
   technique:
-    attack_id: x
-    name: x
+    attack_id: T1566.002
+    name: "Phishing: Spearphishing Link"
   repeatable: True
   platforms:
     linux:
