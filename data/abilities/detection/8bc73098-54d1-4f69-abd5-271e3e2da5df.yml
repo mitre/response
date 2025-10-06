@@ -4,8 +4,8 @@
   description: Checks to see if a new (unauthorized) scheduled task has been added
   tactic: detection
   technique:
-    attack_id: x
-    name: x
+    attack_id: T1053.005
+    name: "Scheduled Task/Job: Scheduled Task"
   repeatable: True
   platforms:
     windows:

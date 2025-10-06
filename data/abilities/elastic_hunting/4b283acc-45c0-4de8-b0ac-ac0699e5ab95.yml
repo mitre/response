@@ -4,8 +4,8 @@
   description: Search for Sysmon Event 1 powershell records with "ExecutionPolicy" and "Bypass"
   tactic: hunt
   technique:
-    attack_id: x
-    name: x
+    attack_id: T1059.001
+    name: "Command and Scripting Interpreter: PowerShell"
   platforms:
     windows:
       elasticsearch: &cmd

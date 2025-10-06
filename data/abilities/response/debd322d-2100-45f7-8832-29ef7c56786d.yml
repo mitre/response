@@ -4,8 +4,8 @@
   privilege: Elevated
   tactic: response
   technique:
-    attack_id: T1065
-    name: Uncommonly Used Port
+    attack_id: T1571
+    name: Non-Standard Port
   platforms:
     windows:
       psh, pwsh:

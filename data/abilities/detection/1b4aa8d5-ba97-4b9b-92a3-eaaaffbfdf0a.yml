@@ -3,8 +3,8 @@
   description: Compare open ports against a known baseline
   tactic: detection
   technique:
-    attack_id: T1065
-    name: Uncommonly Used Port
+    attack_id: T1571
+    name: Non-Standard Port
   repeatable: True
   platforms:
     windows:
