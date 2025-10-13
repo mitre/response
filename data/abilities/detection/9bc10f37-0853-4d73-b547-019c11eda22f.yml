@@ -7,7 +7,7 @@
     name: x
   repeatable: True
   platforms:
-    linux:
+    freebsd,linux:
       sh:
         command: |
           directory="#{directory.sensitive.path}";

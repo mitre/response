@@ -7,7 +7,7 @@
     attack_id: T1053.003
     name: "Scheduled Task/Job: Cron"
   platforms:
-    linux:
+    freebsd,linux:
       sh:
         command: |
           crontab -u #{host.user.name} -l > temp_crontab;
