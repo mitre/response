@@ -55,7 +55,7 @@ class OperationLoop:
         return self._profile.get('paw', 'unknown')
 
     def test_elastic_connection(self):
-        resp = requests.get('%s/_cat/health' % (self.es_host,), params=dict(format='json'), auth=self.auth)
+        resp = requests.get('%s/_cat/health' % (self.es_host,), params=dict(format='json'), auth=self.auth, timeout=30)
         resp.raise_for_status()
         print("[*] Connection to Elasticsearch OK. %s" % resp.json())
 
@@ -69,7 +69,7 @@ class OperationLoop:
         execution_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         resp = requests.post('%s/%s/_search' % (self.es_host, self.index_pattern),
                              params=dict(size=self.result_size),
-                             json=body, auth=self.auth)
+                             json=body, auth=self.auth, timeout=60)
         resp.raise_for_status()
         return resp.json().get('hits', {}).get('hits', []), execution_timestamp
 
@@ -109,7 +109,7 @@ class OperationLoop:
         beacon = self.get_profile()
         beacon['results'] = results
         body = self._encode_string(json.dumps(beacon))
-        resp = requests.post('%s/beacon' % (self.server,), data=body)
+        resp = requests.post('%s/beacon' % (self.server,), data=body, timeout=60)
         resp.raise_for_status()
         beacon_resp = json.loads(self._decode_bytes(resp.text))
         self._profile['paw'] = beacon_resp['paw']
