@@ -4,10 +4,11 @@ import os
 import re
 
 import pytest
-import yaml
+
+yaml = pytest.importorskip("yaml")
 
 
-PLUGIN_DIR = os.path.join(os.path.dirname(__file__), '..')
+PLUGIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 ABILITIES_DIR = os.path.join(PLUGIN_DIR, 'data', 'abilities')
 PAYLOADS_DIR = os.path.join(PLUGIN_DIR, 'payloads')
 
@@ -19,7 +20,7 @@ class TestElasticatSecurity:
 
     def _get_source(self):
         path = os.path.join(PAYLOADS_DIR, 'elasticat.py')
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return f.read()
 
     def test_elasticat_exists(self):
@@ -46,7 +47,7 @@ class TestElasticatSecurity:
                     if isinstance(func.value, ast.Name) and func.value.id == 'requests':
                         is_requests_call = True
                 if is_requests_call:
-                    keyword_names = [kw.arg for kw in node.keywords]
+                    keyword_names = [kw.arg for kw in node.keywords if kw.arg is not None]
                     if 'timeout' not in keyword_names:
                         line = getattr(node, 'lineno', '?')
                         missing.append(f'line {line}: requests.{func.attr}()')
@@ -82,7 +83,7 @@ class TestResponseAbilitiesYAML:
 
     def test_all_abilities_are_parseable(self):
         for yml_file in self._collect_yaml_files():
-            with open(yml_file) as f:
+            with open(yml_file, encoding='utf-8') as f:
                 try:
                     data = yaml.safe_load(f)
                 except yaml.YAMLError as e:
@@ -91,7 +92,7 @@ class TestResponseAbilitiesYAML:
 
     def test_all_abilities_have_required_fields(self):
         for yml_file in self._collect_yaml_files():
-            with open(yml_file) as f:
+            with open(yml_file, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             if not isinstance(data, list):
                 data = [data]
@@ -104,12 +105,14 @@ class TestResponseAbilitiesYAML:
     def test_ability_ids_are_unique(self):
         seen_ids = {}
         for yml_file in self._collect_yaml_files():
-            with open(yml_file) as f:
+            with open(yml_file, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             if not isinstance(data, list):
                 data = [data]
             for ability in data:
                 aid = ability.get('id')
+                if aid is None:
+                    continue
                 if aid in seen_ids:
                     pytest.fail(
                         f'Duplicate ability id {aid} in {yml_file} and {seen_ids[aid]}'
@@ -123,7 +126,9 @@ class TestResponseHook:
     def test_hook_module_loads(self):
         hook_path = os.path.join(PLUGIN_DIR, 'hook.py')
         assert os.path.isfile(hook_path), 'hook.py not found'
-        tree = ast.parse(open(hook_path).read())
+        with open(hook_path, encoding='utf-8') as f:
+            source = f.read()
+        tree = ast.parse(source)
         top_level_names = [
             node.name
             for node in ast.walk(tree)
@@ -133,7 +138,8 @@ class TestResponseHook:
 
     def test_hook_has_name_and_description(self):
         hook_path = os.path.join(PLUGIN_DIR, 'hook.py')
-        source = open(hook_path).read()
+        with open(hook_path, encoding='utf-8') as f:
+            source = f.read()
         tree = ast.parse(source)
         assigned_names = [
             node.targets[0].id
