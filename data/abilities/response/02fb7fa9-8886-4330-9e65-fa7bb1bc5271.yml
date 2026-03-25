@@ -8,7 +8,7 @@
     attack_id: x
     name: x
   platforms:
-    linux:
+    freebsd,linux:
       sh:
         command: |
           kill -9 #{host.pid.unauthorized}
