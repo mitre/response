@@ -22,7 +22,7 @@
             - source: host.process.guid
               edge: has_interesting
               target: investigate.process.guid
-    linux:
+    freebsd,linux:
       elasticsearch:
         *cmd
     darwin:

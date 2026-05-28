@@ -17,7 +17,7 @@
             - source: remote.port.unauthorized
               edge: has_pid
               target: host.pid.unauthorized
-    linux:
+    freebsd,linux:
       sh:
         command: |
           ps aux | grep -v grep | grep #{remote.port.unauthorized} | awk '{print $2}'

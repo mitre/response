@@ -8,7 +8,7 @@
     name: "Scheduled Task/Job: Cron"
   repeatable: True
   platforms:
-    linux:
+    freebsd,linux:
       sh:
         command: |
           set -f;

@@ -25,7 +25,7 @@
             - source: host.process.guid
               edge: has_interesting
               target: investigate.process.parent_guid
-    linux:
+    freebsd,linux:
       elasticsearch:
         *cmd
     darwin:
